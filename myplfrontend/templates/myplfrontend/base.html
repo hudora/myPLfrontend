@@ -1,0 +1,37 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<!-- myplfrontend/base.html -->
+<head>
+    <link href="{{ MEDIA_URL }}/mypl/css/mypl.css" rel="stylesheet" type="text/css" />
+    <title>{% block title %}myPL{% if title %}: {{title}}{% endif %}{% endblock %}</title>    
+    {% block extra_header %}{% endblock %}
+</head>
+
+<body>
+  <div id="header">
+     <a href="/mypl/viewer/"><img src="{{ MEDIA_URL }}/mypl/img/mypl_logo.jpg" /></a>
+  </div>
+{% block menu %}
+<!--  <div id="content_menu">
+    <ul>
+      <li><a href="/mypl/viewer/">myPL</a></li>
+      <li><a href="/mypl/viewer/bewegungen/">Bewegungen</a></li>
+      <li><a href="/mypl/viewer/produkte/">Produkte</a></li>
+      <li><a href="/mypl/viewer/nves/">NVEs</a></li>
+      <li><a href="/mypl/viewer/plaetze/unbebucht/">Pl&auml;tze</a></li>
+    </ul>
+  </div>
+  -->
+{% endblock %}
+    <div id="body_div">
+      <h2>{% block headline %}myPL{% if title %}: {{title}}{% endif %}{% endblock%}</h2>
+      <div id="content">
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+    </body>
+</html>
+
+  
+  

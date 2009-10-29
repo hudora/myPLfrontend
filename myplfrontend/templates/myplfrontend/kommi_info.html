@@ -1,0 +1,317 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools hudjango %}
+
+{% block menu %}{% endblock %}
+
+{% block content %}
+<script src="http://s.hdimg.net/jquery/jquery-1.3.1.js" type="text/javascript"></script>
+<script src="http://s.hdimg.net/jquery/jquery.MetaData.js" type="text/javascript" language="javascript"></script>
+<script src="http://s.hdimg.net/jquery/jquery.rating.js" type="text/javascript" language="javascript"></script>
+<link href="http://s.hdimg.net/jquery/jquery.rating.css" type="text/css" rel="stylesheet"/>
+<style type="text/css">
+.mypl_kb_detail {
+    padding: 0px;
+    margin: 0px;;
+    margin-top: 0px;
+    border-collapse: collapse;
+    border-spacing:0px;
+    width: 795px;
+}
+
+.mypl_kb_detail table {
+    padding: 0px;
+    margin: 0px;;
+    margin-top: 0px;
+    border-collapse: collapse;
+    border-spacing:0px;
+}
+
+.mypl_kb_detail td {
+    padding: 2px;
+    font-size: 9pt;
+    vertical-align: top;
+}
+
+.mypl_kb_detail th {
+    font-size: 9pt;
+    width: 140px;
+}
+
+.even {
+    background-color: #9FC0D5;
+}
+
+.seperator {
+    background-color: #FFFFFF;
+}
+
+.order_positions {
+    border-style: solid;
+    border-width: 2px;
+    border-color: #B4AE80;
+}
+
+.order_kb_pos_head {
+    width: 380px;
+    border-style: solid;
+    border-width: 2px 2px 0px 2px;
+    border-color: #B4AE80;
+}
+
+.order_kb_pos {
+    width: 380px;
+    border-style: solid;
+    border-width: 0px 2px 2px 2px;
+    border-color: #B4AE80;
+}
+</style>
+<!--<pre>{{ kommiauftrag|pprint }}</pre>-->
+
+
+<table class="mypl_kb_detail">
+  <tr>
+    <th>Komissionierauftrag</th>
+    <td>{{ kommiauftrag.kommiauftragsnr }}</td>
+
+    <th>Priorität</th>
+    <td>
+      <style>
+      div.rating-cancel, div.rating-cancel a { display:none; width:0;height:0;overflow:hidden;} 
+      </style>
+      <form id="priority-select" action="invalid/">
+       <input type="radio" class="star" name="priority-select-val" value="p1"/>
+       <input type="radio" class="star" name="priority-select-val" value="p2"/>
+       <input type="radio" class="star" name="priority-select-val" value="p3"/>
+       <input type="radio" class="star" name="priority-select-val" value="p4"/>
+       <input type="radio" class="star" name="priority-select-val" value="p5"/>
+       {% help BedeutungMyplPrioritaet %}
+      </form>
+      <script>
+      $('#priority-select > input').rating({ callback: function(value, link) {
+        if ($('#priority-select').attr('action') != 'invalid/') {
+          $.ajax({
+            type: "POST",
+            url: $('#priority-select').attr('action'),
+            data: {priority: value},
+            contentType: "application/json; charset=utf-8",
+            //dataType: "json",
+            success: function(data, textStatus) {
+                 alert("Priorität geändert");
+            }
+          });
+         };
+       }
+      });
+      
+      function MessageBar() {
+          // CSS styling:
+          var css = function(el,s) {
+              for (var i in s) {
+                  el.style[i] = s[i];
+              }
+              return el;
+          },
+          // Create the element:
+          bar = css(document.createElement('div'), {
+              top: 0,
+              left: 0,
+              position: 'fixed',
+              background: 'orange',
+              width: '100%',
+              padding: '10px',
+              textAlign: 'center'
+          });
+          // Inject it:
+          document.body.appendChild(bar);
+          // Provide a way to set the message:
+          this.setMessage = function(message) {
+              // Clear contents:
+              while(bar.firstChild) {
+                  bar.removeChild(bar.firstChild);
+              }
+              // Append new message:
+              bar.appendChild(document.createTextNode(message));
+          };
+          // Provide a way to toggle visibility:
+          this.toggleVisibility = function() {
+              bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
+          };
+      }
+      
+      $(function() { // This gets executed as document-ready function
+        $('#priority-select > input').rating('select', 'p{{kommiauftrag.priority}}');
+        $('#priority-select').attr({'action': 'set_priority/'});
+      });
+      </script>
+    </td>
+  </tr>
+  
+  <tr>
+    <th>Auftragsnr</th>
+    <td>{{kommiauftrag.auftragsnr}}/{{kommiauftrag.art}}</td>
+    <th>Gewicht</th>
+    <td>{{kommiauftrag.gewicht|g2kg}} kg</td>
+  </tr>
+  
+  <tr>
+    <th>Kartons / Paletten</th>
+    <td>{% if kommiauftrag.export_kartons %}{{kommiauftrag.export_kartons|floatformat}}{% else %}?{% endif %}
+        /
+        {% if kommiauftrag.versandpaletten %}{{kommiauftrag.versandpaletten|floatformat}}{% else %}?{% endif %}</td>
+    <th>Volumen</th>
+    <td>{{kommiauftrag.volumen}} L</td>
+  </tr>
+
+  <tr>
+    <th>KEP {% help BedeutungKep %}</th>
+    <td>{%if kommiauftrag.kep%}<img src="http://s.hdimg.net/chameleon/silver/email.gif" /> {%endif%}{{kommiauftrag.kep|yesno}}</td>
+    <th>Anbruch {% help BedeutungAnbruch %}</th>
+    <td>{%if kommiauftrag.anbruch%}<img src="http://s.hdimg.net/chameleon/silver/unlocked.gif" /> {%endif%}{{kommiauftrag.anbruch|yesno}}</td>
+  </tr>
+
+  <tr>
+    <th>Versandtermin</th>
+    <td>{% if kommiauftrag.versandtermin_ab %}
+          {% ifnotequal kommiauftrag.versandtermin_ab kommiauftrag.versandtermin %}
+              {{kommiauftrag.versandtermin_ab}} -{% endifnotequal %}{%endif%}
+        {{ kommiauftrag.versandtermin }}</td>
+    <th>Anlierfertermin</th>
+    <td>
+      {%if kommiauftrag.fixtermin%}<img src="{{ MEDIA_URL }}chameleon/silver/time.gif" /> {%endif%}
+      {% if kommiauftrag.liefertermin_ab %}
+        {% ifnotequal kommiauftrag.liefertermin_ab kommiauftrag.liefertermin %}
+          {{kommiauftrag.liefertermin_ab}} -{% endifnotequal %}{% endif %}
+      {{kommiauftrag.liefertermin}}
+    </td>
+  </tr>
+
+  <tr>
+    <th valign="top" rowspan="2">Empfänger:</th>
+    <td rowspan="2">{{ kommiauftrag.kundenname }} ({% link_kundennummer kommiauftrag.kundennr %})<br/>
+        {{ kommiauftrag.land }}-{{ kommiauftrag.plz }}
+    </td>
+    <th valign="top">Status:</th>
+    <td>{{kommiauftrag.status}}{% if kommiauftrag.shouldprocess %}, bereit zur Komissionierung{% endif %}</td>
+    {% if kommiauftrag.info_kunde %}
+      <th valign="top">Kundeninformation:</th>
+      <td>{{kommiauftrag.info_kunde}}</td>
+    {% endif %}
+  </tr>
+  
+</table>
+
+<br/><br/>
+
+<h2>Kommissionierauftragspositionen</h2>
+
+<table class="mypl_kb_detail order_positions">
+  <tr class="even">
+      <th>gefordert {% help BedeutungMyplGefordert %}</th>
+      <!--<th>geliefert {% help BedeutungMyplGeliefert %}</th>-->
+      <th style="width: 200px;">Artikel</th>
+      <th>Gewicht</th>
+      <th>Volumen</th>
+      <th>Status {% help BedeutungMyplStatus %}</th>
+  </tr>
+{% for orderline in orderlines %}
+  <tr class="{% cycle odd,even %}">
+    <!--<td></td>-->
+    <td>{{orderline.menge}}</td>
+    <td>{{orderline.artnr|artnr2name}} ({{orderline.artnr|link_product}})</td>
+    <td>{% if orderline.gewicht %}{{orderline.gewicht|g2kg}} kg{% endif %}</td>
+    <td>{% if orderline.volumen %}{{orderline.volumen|floatformat}} L{% endif %}</td>
+    <td>{%if orderline.available%}<img src="{{ MEDIA_URL }}chameleon/green/new.gif"/>{%endif%}
+        {{orderline.fehler}}
+    </td>
+  </tr>
+{% endfor %}
+</table>
+
+
+<h2>Kommischeine</h2>
+
+{% if not kommischeine %}
+  <p>* noch keine erstellt *</p>
+{% endif %}
+
+{% for kommischein in kommischeine %}
+<table class="mypl_kb_detail order_kb_pos_head even">
+  <tr>
+      <th width="30">Status</th>
+      <td width="90"><img title="wird kommissioniert" src="{{ MEDIA_URL }}chameleon/orange/shopping_cart.gif" />{{kommischein.status}}</td>
+      <th width="100">erstellt</th>
+      <td width="160">{{kommischein.created_at}}</td>
+  </tr>
+  <tr>
+      <th>Beleg-Nr.</th>
+      <td>{{kommischein.id|link_number}}</td>
+      <th>gedruckt</th>
+      <td>?</td>
+  </tr>
+  <tr>
+      <th>Zielplatz</th>
+      <td>{{kommischein.destination|link_location}}</td>
+      <th>zurückgemeldet</th>
+      <td>{% if kommischein.commited_at %}{{kommischein.commited_at}}{% endif %}</td>
+  </tr>
+  <tr>
+      <th>Gewicht</th>
+      <td>{{kommischein.gewicht|g2kg}} kg</td>
+      <th>Volumen</th>
+      <td>{{kommischein.volumen|floatformat}} L</td>
+  </tr>
+  <tr>
+      <th>Kartons</th>
+      <td>{{kommischein.export_packages|floatformat}}</td>
+      <th>Paletten</th>
+      <td>{{kommischein.paletten|floatformat}}</td>
+  </tr>
+</table>
+
+<table class="mypl_kb_detail order_kb_pos">
+  <tr class="even">
+      <th>Soll</th>
+      <th>Ist</th>
+      <th>Artnr</th>
+      <th>von</th>
+      <th>PickId</th>
+      <th>MUI</th>
+  </tr>
+{% for provisioning in kommischein.provisionings %}
+  <tr class="{% cycle odd,even %}">
+      <td>{{provisioning.menge }}</td>
+      <td>{{provisioning.status}}</td>
+      <td>{{provisioning.artnr|link_product}}</td>
+      <td>{{provisioning.from_location|link_location}}</td>
+      <td>{{provisioning.id|link_number }}</td>
+      <td>{{provisioning.from_unit|link_mui}}</td>
+  </tr>    
+{% endfor %}
+</table>
+
+{% endfor %}
+
+
+
+<pre>
+    {{kommiauftrag|pprint}}
+</pre>
+
+  
+
+
+<h2>Audit</h2>
+
+<table>
+{% for audit in auditlines %}
+  <tr class="{% cycle odd,even %}">
+    <td>{{audit.description}}</td>
+    <td>{{audit.references}}</td>
+    <td>{{audit.created_at}}</td>
+  </tr>
+{% endfor %}
+</table>
+</div>
+
+    {% endblock%}
+    

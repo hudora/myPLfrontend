@@ -1,0 +1,53 @@
+{% extends "myplfrontend/base.html" %}
+{% load hudoratools hudjango %}
+{% load myplfrontend %}
+
+{% block content %}
+            <div id="info">
+              <form action="/mypl/viewer/produkte/" method="POST">
+                <label style="margin-right: 10px;">Artikel-Nr:</label> 
+                <input type="text" value="{{artnr}}" name="article" style="font-size: 16pt" />
+                <input type="submit" value="Suche" />
+              </form>
+              
+             <p><a href="audit/">Audit Informationen / myPL Konto</a></p>
+               <p>Von Artikel {{artnr|artnr2name}} ({{artnr}}) haben wir folgende Mengen:</p> 
+              <ul>
+                <li>Gesammtmenge: {{full_quantity}} {% help MyPlMengen %}</li>
+                <li>Verf&uuml;gbare Menge: {{available_quantity}} {% help MyPlMengen %}</li>
+                <li>Pickmenge: {{pick_quantity}} {% help MyPlMengen %}</li>
+                <li>Umlagerungsmenge: {{movement_quantity}} {% help MyPlMengen %}</li>
+                <li>SoftM Buchbestand: {{ bestand100 }}</li>
+              </ul>
+           </div>
+            <div id="content_main">
+              <table>
+               <tr>
+               <th>Artnr</th>
+               <th>Menge</th>
+               <th>MUI</th>
+               <th>Platz</th>
+               <th>Datum</th>
+               <th>Bewegung</th>
+               </tr>
+
+              {%for unit in myunits%}
+               <tr class="{% cycle odd,even %}">
+               <td>{{unit.artnr}}</td>
+               <td>{{unit.menge}}</td>
+               <td>{{unit.mui|link_mui}}</td>
+               <td>{{unit.location|link_location}}</td>
+               <td style="white-space:nowrap">{{unit.created_at|date:"Y-m-d H:i"}}</td>
+               <td>{% if not unit.movements %}
+                     {% if unit.pick_quantity %}-{{unit.pick_quantity}}{% endif %}
+                   {% else %}
+                     {{unit.movements.0|link_number}}
+                   {% endif %}</td>
+               </tr>
+              {% endfor %}
+              </table>
+           </div>
+{% endblock %}
+</body>
+</html>
+

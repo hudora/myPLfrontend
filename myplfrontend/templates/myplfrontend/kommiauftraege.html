@@ -1,0 +1,65 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+{% load hudoratools hudjango %}
+     
+   {% block content %}
+    <div id="content_main">
+
+<style>
+.orders * .r_yes {color: #080;}
+.orders * .r_maybe {color: #040;}
+.orders * .r_no {color: #bbb;}
+.orders * .processing {background-color: #ffb;}
+</style>
+
+<table class="orders">
+<tr>
+<td></td>
+<th>Prio</th>
+<th>Versandt.</th>
+<th>KommiId</th>
+<th>AuftrNr</th>
+<th>Pos</th>
+<th>Tries</th>
+<th>Vol</th>
+<th>KG</th>
+<th>Liefert.</th>
+<th>Kunde</th>
+<th>&nbsp;</th>
+</tr>
+
+{% for p in kommiauftraege %}
+<tr title="{% for orderline in p.orderlines %}{{orderline.menge}}x{{orderline.artnr}} {% endfor %}"
+ class="r_{{ p.shouldprocess }} {% ifequal p.status "processing" %}processing{% endifequal %}">
+
+<td style="white-space:nowrap">{% if p.fixtermin %}<img src="{{ MEDIA_URL }}chameleon/silver/time.gif" alt="Fix"/>{% endif %}</td>
+<td style="white-space:nowrap">{{ p.priority }}</td>
+<td style="white-space:nowrap">{{ p.versandtermin }}</td>
+<td style="white-space:nowrap"><a href="{{ p.kommiauftragsnr }}/">{{ p.kommiauftragsnr }}</a></td>
+<td style="white-space:nowrap">{{ p.auftragsnummer}}</td>
+<td style="white-space:nowrap; text-align:right">{{ p.orderlines_count }}</td>
+<td style="white-space:nowrap; text-align:right">{{ p.tries }}</td>
+<td style="white-space:nowrap; text-align:right">{{ p.volumen|floatformat }}</td>
+<td style="white-space:nowrap; text-align:right">{{ p.gewicht|g2kg}}</td>
+<td style="white-space:nowrap">{{ p.liefertermin }}</td>
+<td style="white-space:nowrap">{{ p.kundennr }} {{ p.kundenname }}
+    {% ifequal p.status "processing" %}(Kommischeine erzeugt){% endifequal %}
+    </td>
+<!-- <td>{% if p.kep %}<img src="{{ MEDIA_URL }}chameleon/silver/email.gif" alt="KEP"/>{% endif %}</td> -->
+<!-- <td>{% if p.anbruch %}<img src="{{ MEDIA_URL }}chameleon/silver/unlocked.gif" alt="Anbruch"/>{% endif %}</td> -->
+<td>{% comment %} <a href="./push/{{ p.id }}">Vorziehen</a>{% endcomment %} &nbsp; </td>
+</tr>
+{% endfor %}
+</table>
+
+
+{% if pipelinecutof %}
+<p>Die Liste ist so lang, dass nicht alle Einträge angezeigt werden können</p>
+{% endif %}
+
+<p>
+<img src="{{ MEDIA_URL }}chameleon/silver/time.gif" alt="Fix"/> Fixtermin/Werbung
+</p>
+</div>
+    {% endblock%}
+    

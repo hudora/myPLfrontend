@@ -1,0 +1,31 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %} 
+   
+   {% block content %}
+<style type="text/css">
+{% if movement.archived %}
+#body_div { background-image: url("http://s.hdimg.net/mypl/img/archived_bg.png"); }
+{% endif %}
+</style>
+   <div id="info">
+
+        <p>
+                <ul style="margin-top: 10px;border:1px solid grey">
+                <li>Produkt: {{movement.product|artnr2name}}
+                             ({{movement.product|link_product}})</li>
+                <li>Ausgangsplatz: {{movement.from_location|link_location}}</li>
+                <li>Zielplatz: {{movement.to_location|link_location}}</li>
+                <li>NVE: {{movement.mui|link_mui}}</li>
+                <li>Vorgangsnummer: {{movement.oid|link_number}}
+                {% if pick.attributes.provpipeline_id %}
+                    <li>Kommiauftrag: {{movement.attributes.provpipeline_id|link_kommiauftrag}}</li>
+                {% endif %}
+                <li>Status: {{movement.status}}</li>
+                <li>Erstellt am: {{movement.created_at}}</li>
+                </ul>
+        </p>
+    </div>
+    <pre>{{ movement|pprint }}</pre>
+{% endblock%}
+</body>
+</html>

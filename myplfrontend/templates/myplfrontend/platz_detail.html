@@ -1,0 +1,36 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %}
+      
+   {% block content %}
+    <div id="info">
+   <ul>
+    <li>H&ouml;he: {{platzinfo.height}}</li>
+    <li>Info: {% if platzinfo.info %}{{platzinfo.info}}{% endif %}</li>
+    <li>Reserviert f&uuml;r:{% for mui in platzinfo.reserved_for %}{{nve|link_mui}} {% endfor %}</li>
+    <li>Pr&auml;ferenz: {{platzinfo.preference}}{% if platzinfo.floorlevel %}, Bodenplatz{% endif %}</li>
+    <li>Attribute: {% if platzinf.attributes %}{{platzinfo.attributes}}{% endif %}</li>
+    </ul> 
+</div>
+    <div id="content_main">
+    
+{% if units %}
+    Bebucht mit:
+{% for unit in units %}
+        <ul style="margin-top: 10px;border:1px solid grey">
+        <li>{{ unit.menge }} mal {{ unit.artnr|artnr2name }} ({{ unit.artnr|link_product }})</li> 
+        <li>Pickmenge: {{ unit.pick_quantity }}</li>
+        <li>H&ouml;he: {{ unit.height }}</li>
+        <li>NVE: {{ unit.mui|link_mui }}</li>
+        <li>Eingelagert am: {{unit.created_at|date:"Y-m-h H:i"}}</li>
+        <li>Picks: {% for pick in unit.picks %}{{ pick|link_number }} {% endfor %}</li>
+        <li>Movement: {% for movement in unit.movements %}{{ movement|link_number }}{% endfor %}</li>
+        </ul>
+{% endfor %}
+    </li>
+    {% else %}
+    <p>Der Platz ist unbebucht.</p>
+    {% endif %}
+    <pre>{{ platzinfo|pprint }}</pre>
+    
+    {% endblock%}
+    

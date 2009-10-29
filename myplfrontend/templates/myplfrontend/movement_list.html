@@ -1,0 +1,67 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+   
+   {% block title %}myPL: Movements{% endblock %}
+   
+   {% block headline %}Offenen Bewegungen{% endblock%}
+   
+   {% block content %}
+   <div id="info">
+
+<p><b>Achtung:</b> hier erscheinen auch noch nicht gedruckte Belege!</p>
+
+<h2>Movements</h2>
+{% if movements %}
+<table>
+  <tr>
+    <th>Id</th>
+    <th>Von</th>
+    <th>Nach</th>
+    <th>ArtNr</th>
+    <th>Erstellt</th>
+</tr>
+{% for m in movements %}
+  <tr>
+    <td>{{ m.id|link_number }}</td>
+    <td>{{ m.from_location|link_location }}</td>
+    <td>{{ m.to_location|link_location }}</td>
+    <td>{{ m.artnr|link_product }}</td>
+    <td>{{ m.created_at }}</td>
+    <!-- {{ m.attributes }} -->
+  </tr>
+{% endfor %}
+        </table>
+{% else %}
+<p>keine vorhanden</p>
+{% endif %}
+
+
+<h2>Picks</h2>
+
+{% if picks %}
+<table>
+  <tr>
+    <th>Id</th>
+    <th>Von</th>
+    <th>ArtNr</th>
+    <th>Erstellt</th>
+  </tr>
+{% for m in picks %}
+  <tr>
+    <td>{{ m.id|link_number }}</td>
+    <td>{{ m.from_location|link_location }}</td>
+    <td>{{ m.menge }} mal {{ m.artnr|link_product }}</td>
+    <td>{{ m.created_at }}</td>
+    <!-- {{ m.attributes }} -->
+  </tr>
+{% endfor %}
+</table>
+{% else %}
+<p>keine vorhanden</p>
+{% endif %}
+
+  
+	</div>
+{% endblock%}
+</body>
+</html>

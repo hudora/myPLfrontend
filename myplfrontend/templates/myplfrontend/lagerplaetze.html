@@ -1,0 +1,93 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+
+{% block title %}
+Pl&auml;tze
+{% endblock %}
+
+{% block headline %}
+Pl&auml;tze, sortiert nach Höhe, Status und Pr&auml;ferenz
+{% endblock%}
+
+{% block content %}
+<p>
+<i>
+Je h&ouml;her die Pr&auml;ferenz, desto eher werden die Pl&auml;tze belegt.<br />
+Pl&auml;tze mit <strong>Pr&auml;ferenz 0</strong> werden nie automatisch belegt. 
+</i>
+</p>
+<p>
+<a href="#unbebucht">Zu den unbebuchten Plätzen</a> <!-- XXX maybe remove this link, since its destination is just two lines away -->
+<br />
+<a href="#bebucht">Zu den bebuchten Plätzen</a>
+<br />
+<br />
+</p>
+
+<div id="info">
+    <h1><a name="unbebucht">Unbebuchte Plätze</a></h1>
+    {% for height, locationinfos in unbooked %}
+    {% regroup locationinfos|dictsortreversed:"preference" by preference as pref_list %}
+    <h2>{{ height }} mm </h2>
+
+        {% for pref in pref_list %}
+        <p>
+        <h3> Pr&auml;ferenz {{ pref.grouper }} ({{ pref.list|length }} Plätze)</h3>
+            {% ifequal pref.grouper 0 %} <span style="text-decoration: line-through;"> {% endifequal %}
+
+                {% for locinfo in pref.list %}
+
+                    {% if forloop.counter0|divisibleby:8 %}
+                        {% if not forloop.first %}
+                            <br />
+                        {% endif %}
+                    {% endif %}
+
+                    {{ locinfo.name|link_location }}
+                    &nbsp;
+                {% endfor %}
+
+            {% ifequal pref.grouper 0 %} </span> {% endifequal %}
+        <p>
+        {% endfor %}
+        <br />
+    {% endfor %}
+</div>
+
+<p>&nbsp;</p>
+
+<div id="info">
+    <h1><a name="bebucht">Bebuchte Plätze</a></h1>
+    {% for height, locationinfos in booked %}
+    {% regroup locationinfos|dictsortreversed:"preference" by preference as pref_list %}
+    <h2>{{ height }} mm </h2>
+
+        {% for pref in pref_list %}
+        <p>
+        <h3> Pr&auml;ferenz {{ pref.grouper }} ({{ pref.list|length }} Plätze)</h3>
+            {% ifequal pref.grouper 0 %} <span style="text-decoration: line-through;"> {% endifequal %}
+
+                {% for locinfo in pref.list %}
+
+                    {% if forloop.counter0|divisibleby:8 %}
+                        {% if not forloop.first %}
+                            <br />
+                        {% endif %}
+                    {% endif %}
+
+                    {{ locinfo.name|link_location }}
+                    &nbsp;
+                {% endfor %}
+
+            {% ifequal pref.grouper 0 %} </span> {% endifequal %}
+        <p>
+        {% endfor %}
+        <br />
+    {% endfor %}
+</div>
+
+{%endblock%}
+
+</body>
+</html>
+

@@ -1,0 +1,11 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+   
+{% block content %}
+    <div id="content_main">
+    {% for mui in muis %}{{ mui|link_mui }}
+    {% endfor %}
+    </div>
+
+{% endblock%}
+    

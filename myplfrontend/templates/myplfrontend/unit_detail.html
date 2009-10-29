@@ -1,0 +1,52 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %}
+   
+   {% block content %}
+
+<style type="text/css">
+{% if unit.archived %}
+#body_div { background-image: url("http://s.hdimg.net/mypl/img/archived_bg.png"); }
+{% endif %}
+</style>
+
+   <div id="info">
+   <ul>
+        <li>{{ unit.menge }} mal {{ unit.artnr|artnr2name }} ({{ unit.artnr|link_product }})</li> 
+        {% if unit.pick_quantity %}
+            <li>Pickmenge: {{ unit.pick_quantity }}</li>
+        {% endif %}
+        <li>H&ouml;he: {{ unit.height }} mm</li>
+        <li>MUI/NVE: {{ unit.mui|link_mui }}</li>
+        <li>Lagerplatz: {{ unit.location|link_location }}</li>
+        <li>Eingelagert am: {{ unit.created_at }}</li>
+        {% ifequal unit.source "umlagerung" %}
+            <li>Eingelagert durch Umlagerungsauftrag: {{ unit.komminr }}</li>
+        {% endifequal %}
+        {% if unit.picks %}
+            <li>Picks: {% for pick in unit.picks %}{{ pick|link_number }} {% endfor %}</li>
+        {% endif %}
+        {% if unit.movements %}
+            <li>Movement: {% for movement in unit.movements %}{{ movement|link_number }} {% endfor %}</li>
+        {% endif %}
+    </ul> 
+</div>
+
+<table>
+<tr>
+<th>Menge</th>
+<th>Info</th>
+</tr>
+{% for line in audit %}
+<tr>
+<td>{{ line.quantity }}</td>
+<td>{% if line.description  %}{{ line.description }}{% endif %}{% if line.text  %}{{ line.text }}{% endif %}</td>
+<td>{{ line.transaction|link_number }}</td> 
+<td>{{ line.references|link_number }}</td> 
+<td style="white-space:nowrap">{{ line.created_at }}</td> 
+</tr>
+{% endfor %}
+
+</table>
+
+    {% endblock%}
+    

@@ -1,0 +1,27 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %}
+
+{% block title %}myPL: Penner{% endblock %}
+
+{% block headline %}Penner{% endblock%}
+
+{% block content %}
+
+            <div id="content_main">
+
+<p>Penner ohne Bewegungen in den letzten 45 Tagen:</p>
+
+<table>
+<tr><th>Paletten</th><th>Menge</th><th>ArtNr</th></tr>
+{% for penner in pennerliste %}
+<tr><td>{{ penner.0 }}</td><td>{{ penner.1 }}</td>
+    <td>{{ penner.2|link_product }}</td><td>{{ penner.2|artnr2name }}</td></tr>
+{% endfor %}
+</table>
+
+<p>Siehe auch <a href="../abc/">ABC-Klassifizierung</a>.</p>
+           </div>
+{% endblock %}
+</body>
+</html>
+

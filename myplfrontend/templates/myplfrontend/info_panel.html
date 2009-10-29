@@ -1,0 +1,131 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>myPL: Infopanel</title>
+	<meta http-equiv="refresh" content="120; URL=./">
+	<meta name="generator" content="TextMate http://macromates.com/">
+	<meta name="author" content="Lars Ronge">
+	<!-- Date: 2008-02-26 -->
+
+    <style>
+    body {
+        background-color: #9FC0D5;
+        font-family: Helvetica;
+        font-size: 30pt;
+    }
+    table.orders th{
+        width: 250px;
+        text-align: center;
+        padding: 20px 20px 20px 20px;
+    }
+
+    table.orders th.left{
+        text-align: right;
+        padding: 20px 20px 20px 20px;
+    }
+
+    table.orders td{
+        text-align: center;
+        padding: 20px 20px 20px 20px;
+    }
+    
+    tr.row1 {
+        background-color: #FFFFFF;
+    }
+    
+    tr.row2 {
+        background-color: #B6AF79;
+    }
+    
+    table.picks td {
+        width: 200px;
+        padding: 20px 20px 20px 20px;
+        text-align: center;
+    }
+    
+    table.picks th {
+        padding: 20px 20px 20px 20px;
+        text-align: center;
+        font-size: 22pt;
+    }
+    
+    table.picks .col1 {
+        background-color: #FFFFFF;
+    }
+
+    table.picks .col2 {
+        background-color: #B6AF79;
+    }
+    
+    h1 {
+        margin: 40px 20px 20px 20px;
+        font-weight: bold;
+        font-size: 40pt;
+    }
+    
+    td {
+        font-size:45pt;
+        font-weight:bold;
+    }
+    </style>
+    </head>
+<body>
+
+
+<div id="content_main">
+    <center>
+
+<h1 style="text-transform:uppercase">Heute zu Kommissionieren</h1>
+
+<table class="picks">
+<tr>
+    <th class="col1">LS-Positionen gesamt</th>
+    <th class="col2">LS-Positionen unerledigt</th>
+    <th class="col1">LS-Positionen in Arbeit</th>
+    <th class="col1">LS-Positionen erledigt</th>
+    <th class="col2">Prozent erledigt</th>
+</tr>
+<tr>
+    <td class="col1">{{ positions.total }}</td>
+    <td class="col2">{{ positions.todo }}</td>
+    <td class="col1">{{ positions.inwork }}</td>
+    <td class="col1">{{ positions.done }}</td>
+    <td class="col2">{{ positions.percent_done|floatformat:0 }} %</td>
+</tr>
+</table>
+
+<br />
+
+<table class="orders">
+<th></th>
+<th>KEP</th>
+<th>normal</th>
+<th>Direkt</th>
+</tr>
+<tr class="row1">
+<th class="left">Lieferscheine</th>
+<td>{{db.yes_kep.count}}</td>
+<td>{{db.yes_normal.count}}</td>
+<td>{{db.yes_direktfahrt.count}}</td>
+</tr>
+<tr class="row2">
+<th class="left">LS-Positionen</th>
+<td>{{db.yes_kep.orderlines_count}}</td>
+<td>{{db.yes_normal.orderlines_count}}</td>
+<td>{{db.yes_direktfahrt.orderlines_count}}</td>
+</tr>
+<tr class="row1">
+<th class="left">Picks (ca.)</th>
+<td>{{db.yes_kep.picks}}</td>
+<td>{{db.yes_normal.picks}}</td>
+<td>{{db.yes_direktfahrt.picks}}</td>
+</tr>
+</table>
+
+</center>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %}   
+   {% block content %}
+
+<style type="text/css">
+{% if pick.archived %}
+#body_div { background-image: url("http://s.hdimg.net/mypl/img/archived_bg.png"); }
+{% endif %}
+</style>
+
+   <div id="info">
+        <p>
+            <ul style="margin-top: 10px;border:1px solid grey">
+            {% if pick.interne_umlagerung %}
+                <li>Typ:: Interne Umlagerung  </li>
+            {% endif %}
+            <li>Menge: {{pick.menge}}</li>
+            <li>Produkt: {{pick.artnr|artnr2name}}
+                         ({{pick.artnr|link_product}})</li>
+            {% if pick.from_location %}
+                <li>Ausgangsplatz: {{pick.from_location|link_location}}</li>
+            {% endif %}
+            <li>Von NVE {{pick.from_unit|link_mui}}</li>
+            {% if pick.provpipeline_id %}
+                <li>Kommiauftrag: {{pick.provpipeline_id|link_kommiauftrag}}</li>
+            {% endif %}
+            {% if pick.kernel_provisioninglist_id %}
+                <li>Kommischein: {{pick.kernel_provisioninglist_id|link_kommischein}}</li>
+            {% endif %}
+            <li>Erstellt am: {{pick.created_at}}</li>
+            <li>Status: {{pick.status}}</li>
+            </ul>
+        </p>
+    </div>
+    <pre>{{ pick|pprint }}</pre>
+{% endblock%}

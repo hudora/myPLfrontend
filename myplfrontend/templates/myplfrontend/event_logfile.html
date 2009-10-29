@@ -1,0 +1,38 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+   
+   {% block title %}myPL: Logfile{% endblock %}
+   
+   {% block headline %}Ereignisse im Logfile{% endblock%}
+   
+   {% block content %}
+   <div id="info">
+
+<h2>Events</h2>   
+{% if events %}
+<table>
+  <tr>
+    <th>Id</th>
+    <th>Art</th>
+    <th>Erstellt um</th>
+    <th>Zurückgemeldet um</th>
+    <th>Kommissionierer</th>
+</tr>
+{% for e in events %}
+  <tr>
+    <td>{{ e.action_id }}</td>
+    <td>{{ e.action_type }}</td>
+    <td>{{ e.created_at}}</td>
+    <td>{{ e.confirmed_at}}</td>
+    <td>{{ e.positions}}</td>
+    <td>{{ e.handled_by }}</td>
+  </tr>                       
+{% endfor %}
+        </table>
+{% else %}
+<p>keine vorhanden</p>
+{% endif %}
+	</div>
+{% endblock%}
+</body>
+</html>

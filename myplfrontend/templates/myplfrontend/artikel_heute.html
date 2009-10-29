@@ -1,0 +1,54 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+
+{% block extra_header %}
+<link rel="stylesheet" type="text/css" href="/media/css/tablesorter.css">
+<script type="text/javascript" src="/media/javascript/jquery.js"></script>
+<script type="text/javascript" src="/media/javascript/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" charset="utf-8">
+<!--
+    $(document).ready(function() {
+        $("#id_artikel_table").tablesorter({
+          sortList: [[0,1], [1, 0]],
+          widgets: ['zebra'],
+          headers: {2: {sorter: false}, 3: {sorter: false}, 4: {sorter: false}, 5: {sorter: false}, 6: {sorter: false}}
+        });
+    });
+// -->
+</script>
+{% endblock %}
+     
+   {% block content %}
+    <div id="content_main">
+
+<table id="id_artikel_table" class="tablesorter">
+    <thead>
+<tr>
+<th>Menge</th>
+<th>Artikel</th>
+<th>Artikelbeschreibung</th>
+<th># Paletten</th>
+<th>Palettenf.</th>
+<th>Ges.-gew.</th>
+<th>Ges.-vol.</th>
+</tr>
+<thead>
+
+<tbody>
+{% for artikel in artikel_heute %}
+<tr> {% comment %} class="{% cycle even,odd %}">{% endcomment %}
+    <td style="text-align:right;">{{ artikel.quantity }}</td>
+    <td>{{ artikel.artnr }}</td>
+    <td>{{ artikel.name }}</td>
+    <td>{{ artikel.paletten|floatformat:1 }}</td>
+    <td>{{ artikel.palettenfaktor|floatformat:0 }}</td>
+    <td>{{ artikel.total_weight|floatformat:0 }}</td>
+    <td>{{ artikel.total_volume|floatformat:0 }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+</div>
+    {% endblock%}
+    

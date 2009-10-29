@@ -1,0 +1,31 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+
+{% block content %}
+<div id="content_main">
+
+<p><a href="../">Zurück zum Artikel</a>.</p>
+
+<table>
+<tr>
+<th></th>
+<th>Menge</th>
+<th>ArtNr</th>
+<th>NVE</th>
+<th>Info</th>
+<th>Ref</th>
+</tr>
+{% for a in audit %}
+<tr class="{% cycle odd,even %}">
+<td style="white-space:nowrap">{{a.created_at}}</td>
+<td>{{a.quantity}}</td>
+<td>{{a.product|link_product}}</td>
+<td>{{a.mui|link_mui}}</td>
+<td>{{a.description}}</td>
+<td>{% if a.references %}{{a.references}}{%endif%}</td>
+<td>{% if a.transaction %}{{a.transaction|link_number}}{%endif%}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

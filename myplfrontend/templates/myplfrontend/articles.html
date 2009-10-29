@@ -1,0 +1,55 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+
+{% block title %}myPL: Artikel{% endblock %}
+
+{% block headline %}Artikelinformationen{% endblock%}
+
+{% block content %}
+            <div id="info">
+              <form action="." method="POST">
+                <label style="margin-right: 10px;">Artikel-Nr:</label> 
+        <input type="text" value="{% if artnr %}{{artnr}}{% endif %}" name="article" style="font-size: 16pt" />
+        <input type="submit" value="suche" />
+              </form>
+    
+    
+    <p>
+    {% if want_softm %}
+    Die letzte Spalte gibt den Buchbestand laut SoftM an. Wenn die Zahl rot ist, existiert eine Abweichung.
+    {% else %}
+    Sie können sich den Bestand auch in <a href="../products_softm/">Relation zum SoftM Buchbestand</a> anzeigen lassen.
+    {% endif %}
+    </p>
+    
+    {% if articles %}
+        <p> Im Lager befinden sich zur Zeit: {{articles|length}} verschiedene Artikel.</p>
+        </div>
+            <div id="content_main">
+        <table>
+        <tr>
+        <th>ArtNr</th>
+        <th>Full Qty</th>
+        <th>Avail Qty</th>
+        <th>Pick Qty</th>
+        <th>Movement Qty</th>
+        </tr>
+    {% for entry in articles %}
+        {% spaceless %}
+        <tr class="{% cycle odd,even %}">
+        <td><a href="../produkte/{{entry.artnr}}">{{entry.artnr}}</a></td>
+        <td>{{entry.full_quantity}}</td>
+        <td>{{entry.available_quantity}}</td>
+        <td>{{entry.pick_quantity}}</td>
+        <td>{{entry.movement_quantity}}</td>
+        <td {% ifequal entry.full_quantity entry.buchbestand%}{% else %}class="fehlmenge" style="text-decoration:underline; color:red"{% endifequal %}>{% if entry.buchbestand %}{{entry.buchbestand}}{% endif %}</td>
+        </tr>
+        {% endspaceless %}
+    {% endfor %}
+        </table>
+    {% endif%}
+           </div>
+{% endblock %}
+</body>
+</html>
+

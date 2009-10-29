@@ -1,0 +1,111 @@
+{% extends "myplfrontend/base.html" %}
+
+{% block title %}myPL: Lager&uuml;bersicht{% endblock %}
+
+{% block headline %}Lager&uuml;bersicht{% endblock%}
+
+{% block content %}
+<div id="info">
+    <p>
+        Im Lager gibt es zur Zeit {{ anzahl_artikel }} verschiedene Artikel.
+    </p>
+    <p>
+        Das Lager hat {{ anzahl_plaetze }} Pl&auml;tze, davon sind {{ anzahl_unbebucht }} Pl&auml;tze nicht bebucht.
+    </p>
+    <p>
+        Freie Pickbare Plätze: {{ empty_pickable_locations }}
+    </p>
+    <p>
+        Artikel mit mehr als einer Palette am Boden: {{ multi_floorunits }}
+    </p>
+    <p>
+        Umlagerungsaforderungen: {{ requesstracker_entries }}
+    </p>
+    <p>
+        Offene movements: {{ open_movements }}
+    </p>
+    <p>
+        Offene picks: {{ open_picks }}
+    </p>
+    <p>
+        Ältestes offenes Movement: {{ oldest_movement }}
+    </p>
+    <p>
+        Ältester offener Pick: {{ oldest_pick }}
+    </p>
+
+
+
+    <table cellspacing='30'>
+        <tr valign='top'>
+            <td>
+                <h3>Unbebuchte Pl&auml;tze </h3>
+                <table>
+                    <tr>
+                        <th>
+                            H&ouml;he [mm]
+                        </th>
+                        <th>
+                            Anzahl
+                        </th>
+                    </tr>
+                    {% for hoehe, anzahl in plaetze_unbebucht %}
+                    <tr>
+                        <td align='right'>
+                            {{ hoehe }}
+                        </td>
+                        <td align='right'>
+                            {{ anzahl }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td align='right'>
+                            <b>Summe</b>
+                        </td>
+                        <td align='right'>
+                            <b>
+                                {{ anzahl_unbebucht }}
+                            </b>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <td>
+                <h3>Bebuchte Pl&auml;tze </h3>
+                <table>
+                    <tr>
+                        <th>
+                            H&ouml;he [mm]
+                        </th>
+                        <th>
+                            Anzahl
+                        </th>
+                    </tr>
+                    {% for hoehe, anzahl in plaetze_bebucht %}
+                    <tr>
+                        <td align='right'>
+                            {{ hoehe }}
+                        </td>
+                        <td align='right'>
+                            {{ anzahl }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td align='right'>
+                            <b> Summe </b>
+                        </td>
+                        <td align='right'>
+                            <b> {{ anzahl_bebucht}} </b>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+</div>
+{% endblock%}
+</body>
+</html>

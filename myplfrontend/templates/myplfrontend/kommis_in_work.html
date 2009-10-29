@@ -1,0 +1,37 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend %}
+     
+   {% block content %}
+    <div id="content_main">
+
+<table>
+<tr>
+<th>KommiId</th>
+<th>AuftrNr</th>
+<th>KdnNr</th>
+<th>Pos</th>
+<th>Liefert.</th>
+<th>Vol</th>
+<th>Bel</th>
+</tr>
+
+{% for lieferschein in lieferscheine %}
+<tr title="{{ lieferschein.get_lspos_content }}">
+<td><a href="../{{ lieferschein.kommissionierbelegnr }}/">{{ lieferschein.kommissionierbelegnr }}</a></td>
+<td>{{ lieferschein.auftragsnr}}</td>
+<td>{{ lieferschein.warenempfaenger }}</td>
+<td>{{ lieferschein.count_positions }}</td>
+<td>{{ lieferschein.liefer_date }}</td>
+<td>{{ lieferschein.total_volume|floatformat }}</td>
+<td>{{ lieferschein.parts }}</td>
+<td><small>
+    {% for prov in lieferschein.provs %}
+        {{ prov.0 }}/{{ prov.1 }}<br />
+    {% endfor %}
+</small></td>
+</tr>
+{% endfor %}
+</table>
+</div>
+    {% endblock%}
+    

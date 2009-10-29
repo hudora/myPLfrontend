@@ -1,0 +1,31 @@
+{% extends "myplfrontend/base.html" %}
+
+{% block title %}myPL: Lager&uuml;bersicht{% endblock %}
+
+{% block headline %}Lager&uuml;bersicht{% endblock%}
+
+{% block content %}
+<div id="info">
+
+    <b>Bewegungen / Kommisionierungen</b>
+    <ul>
+        <li><a href="kommiauftrag/"> Kommissionieraufträge im myPL</a></li>
+        <li><a href="bewegungen/">offene Bewegungen im Lager</a></li>
+        <li><a href="artikel_heute/">Liste der heute noch zu verschickenden Artikel</a></li>
+    </ul>
+    <br />
+    <b>Lagerplätze</b>
+    <ul>
+        <li><a href="info/">Informationen über das Lager</a></li>
+        <li><a href="plaetze/">Platzliste</a></li>
+    </ul>
+    <br />
+    <b>Produkte</b>
+    <ul>
+        <li><a href="produkte/">Artikel im Lager</a> (<a href="produkte_softm/">SoftM Daten</a>)</li>
+        <li><a href="abc/">ABC-Klassifizierung</a> / <a href="penner/">Penner</a></li>
+    </ul>
+</div>
+{% endblock%}
+</body>
+</html>
