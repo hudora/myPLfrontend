@@ -4,24 +4,24 @@ PATH := ./testenv/bin:$(PATH)
 default: dependencies check test
 
 hudson: clean dependencies test statistics
-	find myPLfrontend -name '*.py' | xargs /usr/local/hudorakit/bin/hd_pep8
-	/usr/local/hudorakit/bin/hd_pylint -f parseable myPLfrontend | tee pylint.out
+	find myplfrontend -name '*.py' | xargs /usr/local/hudorakit/bin/hd_pep8
+	/usr/local/hudorakit/bin/hd_pylint -f parseable myplfrontend | tee pylint.out
 
 check:
-	-find myPLfrontend -name '*.py' | xargs /usr/local/hudorakit/bin/hd_pep8
-	-/usr/local/hudorakit/bin/hd_pylint myPLfrontend
+	-find myplfrontend -name '*.py' | xargs /usr/local/hudorakit/bin/hd_pep8
+	-/usr/local/hudorakit/bin/hd_pylint myplfrontend
 
 test:
-	python manage.py test --verbosity=1 myPLfrontend
+	python manage.py test --verbosity=1 myplfrontend
 
 dependencies:
 	virtualenv testenv
 	pip -q install -E testenv -r requirements.txt
 	# the following line is needed for Django applications
-	# sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
+	sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
 
 statistics:
-	sloccount --wide --details myPLfrontend > sloccount.sc
+	sloccount --wide --details myplfrontend > sloccount.sc
 
 build:
 	python setup.py build sdist

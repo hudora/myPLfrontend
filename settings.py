@@ -22,7 +22,7 @@ if DEBUG:
 else:
     SEND_BROKEN_LINK_EMAILS = True
 
-MEDIA_URL = 'http://s.hdimg.net/myPLfrontend/'
+MEDIA_URL = 'http://s.hdimg.net/myplfrontend/'
 # for development you can use something like this:
 # MEDIA_ROOT = './public/'
 # MEDIA_URL = '/public/'
@@ -45,7 +45,7 @@ INSTALLED_APPS = (
     #'hudoratools',
     #'hudjango',
     
-    'myPLfrontend',
+    'myplfrontend',
 )
 
 
