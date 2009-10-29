@@ -4,3 +4,4 @@
 # hudjango
 django
 python-memcached
+cs>=0.25
