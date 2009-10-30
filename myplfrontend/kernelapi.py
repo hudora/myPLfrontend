@@ -257,30 +257,40 @@ def get_article(artnr):
         raise RuntimeError("can't get reply from kernel")
     
 
+def fix_timestamp(value):
+    """Converts a single string timestamp to a datetime object in the local timezone.
+    Timestamp is assumed to be UTC.
+    """
+    value = value.split('.')[0]
+    if len(value) == 17:
+        # bug in legacy records: 20091015T00222559
+        value = value[:9] + value[11:]
+    if not value.endswith('Z'):
+        value = value + 'Z'
+    # Would be better to use something mature like
+    # http://pytz.sourceforge.net/
+    value = value.replace('Z', 'UTC')
+    if '-' not in value:
+        try:
+            dtime = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S%Z')
+        except ValueError:
+            raise
+    else:
+        dtime = datetime.datetime.strptime(value, '%Y-%m-%dT%H:%M:%S%Z')
+    secs = calendar.timegm(dtime.timetuple())
+
+    return datetime.datetime(*time.localtime(secs)[0:6])
+
+
 def fix_timestamps(doc):
-    """Converts string timestamps to datetime objectssss in the local timezone.
-    Timestamps are assumed to be UTC."""
+    """Converts list of strings, which may contain a timestamps string.
+    only keys ending with "_at" will be converted to datetime objects in the local timezone.
+    Timestamps are assumed to be UTC.
+    """
     
     for key, value in doc.items():
         if key.endswith('_at'):
-            value = value.split('.')[0]
-            if len(value) == 17:
-                # bug in legacy records: 20091015T00222559
-                value = value[:9] + value[11:]
-            if not value.endswith('Z'):
-                value = value + 'Z'
-            # Would be better to use something mature like
-            # http://pytz.sourceforge.net/
-            value = value.replace('Z', 'UTC')
-            if '-' not in value:
-                try:
-                    dtime = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S%Z')
-                except ValueError:
-                    raise
-            else:
-                dtime = datetime.datetime.strptime(value, '%Y-%m-%dT%H:%M:%S%Z')
-            secs = calendar.timegm(dtime.timetuple())
-            doc[key] = datetime.datetime(*time.localtime(secs)[0:6])
+            doc[key] = fix_timestamp(value)
     return doc
     
 

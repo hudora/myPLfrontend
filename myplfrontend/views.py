@@ -97,6 +97,9 @@ def lager_info(request):
     
     extra_info = kernelapi.get_statistics()
 
+    extra_info['oldest_movement'] = kernelapi.fix_timestamp(extra_info['oldest_movement'])
+    extra_info['oldest_pick'] = kernelapi.fix_timestamp(extra_info['oldest_pick'])
+
     info.update(extra_info)
 
     return render_to_response('myplfrontend/lager_info.html', info, context_instance=RequestContext(request))
