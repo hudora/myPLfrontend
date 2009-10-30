@@ -4,5 +4,6 @@
 # hudjango
 Django==1.0.2-final
 python-memcached
-cs
+cs>=0.25
+couchdb
 husoftm

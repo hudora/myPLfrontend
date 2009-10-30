@@ -1,0 +1,196 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""mypl_rueckmelde_server - read messages from RabbitMQ and feed them to zwitschr
+"""
+
+# mypl/bin/mypl_rueckmelde_server.py
+# Created by Maximillian Dornseif on 2009-07-13 for HUDORA.
+# Copyright (c) 2009 HUDORA. All rights reserved.
+
+__revision__ = '$Revision $'
+
+import cs.caching
+from cs.zwitscher import zwitscher
+import datetime
+import hashlib
+import husoftm.connection
+import husoftm.kunden
+import husoftm.lieferscheine
+import re
+import simplejson as json
+import time
+import unittest
+import urllib
+import Pyro.util
+from amqplib import client_0_8 as amqp
+from optparse import OptionParser
+
+
+def parse_commandline():
+    """Parse the commandline and return information."""
+    
+    parser = OptionParser(version=True)
+    parser.version = "%%prog Rev %s" % (__revision__.strip('$Revision: '))
+    parser.description = __doc__
+    
+    parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
+    parser.add_option('-d', '--debug', action='store_true', dest='debug',
+                      help='Enables debugging mode')
+    parser.add_option('-e', '--erase', action='append',
+                      help='Erase this kommiauftragnr without forwarding [%default]')
+    parser.add_option('-l', '--loop', action='store_true',
+                      help='Run continuesly checking for new messages every --sleep seconds')
+    parser.add_option('-s', '--sleep', action='store', type='float', default=2,
+                      help='Sleep intervals between processing attempts [%default]')
+    parser.add_option('-o', '--output', default='rueckmeldung.log',
+                      help='output all Kommischeint to logfile [%default]')
+    parser.add_option('-p', '--messagepause', action='store', type='float', default=0.01,
+                      help='Sleep intervals between messages [%default]')
+    
+    options, args = parser.parse_args()
+    if len(args) > 0: # we expect no non option arguments
+        parser.error('incorrect number of arguments')
+    return options, args
+    
+
+def init_broker():
+    # init Message Broker Connection
+    conn = amqp.Connection(host="rabbitmq.local.hudora.biz:5672", userid="mypl",
+                           password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
+    chan = conn.channel()
+    # ensured the required routing is set-up
+    chan.exchange_declare(exchange="erp.cs-wms.rueckmeldung#spezial", type="direct",
+                          durable=True, auto_delete=False)
+    chan.queue_declare(queue="erp.cs-wms.rueckmeldung#spezial", durable=True,
+                       exclusive=False, auto_delete=False)
+    chan.queue_bind(queue="erp.cs-wms.rueckmeldung#spezial", exchange="erp.cs-wms.rueckmeldung#spezial",
+                    routing_key="erp.cs-wms.rueckmeldung#spezial")
+    return conn, chan
+    
+
+def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
+    
+    print auftragsnr, kommiauftragsnr, positionen
+    server = husoftm.connection.PyRoMoftSconnection()
+    lock_key = datetime.datetime.now().strftime("%m%d%H%M%S")
+    rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
+                        % int(kommiauftragsnr))
+    if rows:
+        raise RuntimeError("KB already exists %r" % kommiauftragsnr)
+        
+    for pos in positionen:
+        # auftrags_position = 
+        pos_sql = dict(IRFNR='01',
+                       IRKBNR=int(kommiauftragsnr), # take from auftrag
+                       IRKPOS=pos['posnr'],
+                       IRAUFN=int(auftragsnr),
+                       IRAUPO=int(pos['auftrags_position']),
+                       IRDFSL=lock_key)
+        if typ == 'nullen':
+            pos_sql['IRMENG'] = 0
+            pos_sql['IRKZNU'] = 1
+        # elif commit_type == 'cancel':
+        #     pos_sql['IRMENG'] = 0
+        #     pos_sql['IRKZST'] = 1
+        # else:
+        #     menge = pos['menge']
+        #     pos_sql['IRMENG'] = int(pos.menge)
+        sqlstr = 'INSERT INTO ISR00 (%s) VALUES (%s)' % (','.join(pos_sql.keys()),
+                                                    ','.join([repr(x) for x in pos_sql.values()]))
+        try:
+            server.insert_raw(sqlstr)
+        except Exception, msg:
+            zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))), username='debugger') 
+            raise
+    try:
+        # set all records to be unlocked
+        server.update_raw(("UPDATE ISR00 SET IRDFSL='' WHERE IRKBNR='%s' AND IRDFSL='%s'" % (
+                               int(kommiauftragsnr), lock_key)))
+    except Exception, msg:
+        cs.zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))), username='debugger') 
+        raise
+    # Datensatz an SoftM zurückgemeldet
+
+
+def decodiere_message(msg, options):
+    hugogramm = json.loads(msg.body)
+    if options.debug:
+        print hugogramm
+    
+    hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr')) 
+    kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
+    positionsmapping = {}
+    for pos in kommibeleg.positionen:
+        positionsmapping[pos.kommissionierbeleg_position] = pos.auftrags_position
+    
+    for pos in hugogramm['positionen']:
+        pos['auftrags_position'] = positionsmapping[pos['posnr']]
+    return kommibeleg, hugogramm
+    
+
+def log_message(typ, kommibeleg, hugogramm, options):
+    fd = open(options.output, 'w')
+    fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
+                 ','.join(["0 mal %s|%s" % (x['artnr'], x['posnr']) for x in hugogramm['positionen']])))
+    fd.close()
+    
+
+def benachrichtigen(kommibeleg, hugogramm):
+    betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
+    zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
+                                        hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
+    
+
+def process_messages_spezial(chan, options):
+    while True:
+        msg = chan.basic_get("erp.cs-wms.rueckmeldung#spezial", no_ack=False)
+        if not msg:
+            break
+        
+        # TODO: eigentlich müsste die art der NAchricht noch in der Nachricht codiert sein
+        kommibeleg, hugogramm = decodiere_message(msg, options)
+        if hugogramm['kommiauftragnr'] not in options.erase:
+            log_message('nullen', kommibeleg, hugogramm, options)
+            zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
+            chan.basic_ack(msg.delivery_tag)
+            benachrichtigen(kommibeleg, hugogramm)
+        time.sleep(options.messagepause)
+    
+
+def process_messages_normal(chan, options):
+    while True:
+        msg = chan.basic_get("erp.cs-wms.rueckmeldung#normal", no_ack=False)
+        if not msg:
+            break
+        
+        kommibeleg, hugogramm = decodiere_message(msg, options)
+        if hugogramm['kommiauftragnr'] not in options.erase:
+            log_message('rueckmelden', kommibeleg, hugogramm, options)
+            # zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
+            chan.basic_ack(msg.delivery_tag)
+            benachrichtigen(kommibeleg, hugogramm)
+        time.sleep(options.messagepause)
+    
+
+
+def main(options, args):
+    conn, chan = init_broker()
+    
+    if not options.erase:
+        options.erase = []
+    if not options.loop:
+        process_messages_spezial(chan, options)
+        #process_messages_normal(chan, options)
+    else:
+        print "starting"
+        while True:
+            time.sleep(options.sleep)
+            process_messages_spezial(chan, options)
+            #process_messages_normal(chan, options)
+    
+    chan.close()
+    conn.close()
+    
+
+if __name__ == '__main__':
+    main(*parse_commandline())
