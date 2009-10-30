@@ -18,6 +18,7 @@ import time
 
 
 COUCHSERVER = "http://couchdb.local.hudora.biz:5984"
+KERNELURL = "http://hurricane.local.hudora.biz:8000"
 
 
 def get_article_audit(artnr):
