@@ -323,11 +323,64 @@ def _get_data_from_kernel(path):
         raise RuntimeError("can't get reply from kernel")
 
 
+def location_list():
+    """Returns the full list of locations in the warehouse."""
+    return _get_data_from_kernel('location')
+
+
+def location_detail(location):
+    """Returns a dict w/ detailed information about one location in the warehouse."""
+    return _get_data_from_kernel('location/%s' % location)
+
+
 def get_location(location):
     """Return data for location from kernel."""
-    return _get_data_from_kernel("location/%s" % location)
+    # TODO deprecation warning
+    return location_detail(location)
+
+
+def product_list():
+    """Returns a list of all products (artnrs) to be found actually in the warehouse."""
+    return _get_data_from_kernel('product')
+
+
+def product_detail(artnr):
+    """Return a dict w/ detailed information about a product in the warehouse."""
+    return _get_data_from_kernel('product/%s' % artnr)
+
+
+def count_products():
+    """..."""
+    # is there a server side count_products function?
+    raise RuntimeError("Not implemented yet. Not sure if we need to.")
 
 
 def get_statistics():
     """Return statistics about the kernel."""
     return _get_data_from_kernel("statistics")
+
+
+def unit_list():
+    """Returns a list of all MUIs"""
+    return _get_data_from_kernel("unit")
+
+
+def unit_detail(mui):
+    """Return detailed information about a unit.
+
+    >>> import kernelapi
+    >>> kernelapi.unit_detail(340059981002564246)
+    {'artnr': '71418',
+     'created_at': '2009-10-23T05:40:38.221078Z',
+     'height': 1650,
+     'id': '340059981002564246',
+     'komminr': '3097516',
+     'location': '132203',
+     'menge': 8,
+     'movements': [],
+     'mui': '340059981002564246',
+     'pick_quantity': 0,
+     'picks': [],
+     'source': 'umlagerung'}
+    """
+    return _get_data_from_kernel("unit/%s" % mui)

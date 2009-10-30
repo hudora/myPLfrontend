@@ -6,7 +6,6 @@
 import couchdb
 import datetime
 import django.views.decorators.http
-import httplib2
 import husoftm.bestaende
 import kernelapi
 import myplfrontend.tools
@@ -26,20 +25,8 @@ from produktpass.models import Product
 import cs.masterdata.article
 
 
+import httplib2
 COUCHSERVER = "http://couchdb.local.hudora.biz:5984"
-KERNELURL = "http://hurricane.local.hudora.biz:8000"
-
-def _get_data_from_kernel(path):
-    """Return data from the kernel, gotten from SERVER/path.
-    
-    It does a GET request, receives json, and decodes this for you.
-    """
-    httpconn = httplib2.Http()
-    resp, content = httpconn.request(KERNELURL + '/%s' % path, 'GET')
-    if resp.status == 200:
-        return json.loads(content)
-    else:
-        raise RuntimeError("can't get reply from kernel")
 
 
 def _get_locations_by_height():
@@ -47,34 +34,25 @@ def _get_locations_by_height():
 
     Keys of that dict are 'bebucht' and 'unbebucht',
     values are again dictionaries containing locations belonging to a given height."""
-    kerneladapter = Kerneladapter()
     booked, unbooked = {}, {}
-    
-    # TODO: move to http
-    for location in kerneladapter.location_list():
-        info = kerneladapter.location_info(location)
+
+    # i suspect having a server-side 'location_detail_list' would provide a great speedup here
+    for location in kernelapi.location_list():
+        info = kernelapi.location_detail(location)
         loc_info = dict(name=info['name'], preference=info['preference'])
         height = info['height']
         if (info['reserved_for'] or info['allocated_by']):
             booked.setdefault(height, []).append(loc_info)
         else:
             unbooked.setdefault(height, []).append(loc_info)
-
     return (booked, unbooked, )
 
-
-def index(request):
-    """Render static index page."""
-    return render_to_response('myplfrontend/index.html', {}, context_instance=RequestContext(request))
-    
 
 def _lager_info():
     """This is the logic for the lager_info view.
 
     A dict is created, containing information about warehouse status."""
-    # TODO: move to http
-    kerneladapter = Kerneladapter()
-    anzahl_artikel = len(kerneladapter.count_products())
+    anzahl_artikel = len(kernelapi.product_list())
 
     booked_plaetze, unbooked_plaetze = _get_locations_by_height()
 
@@ -88,11 +66,16 @@ def _lager_info():
     return {'anzahl_bebucht': nplaetze_booked, 'anzahl_unbebucht': nplaetze_unbooked,
                 'anzahl_plaetze': nplaetze_gesamt, 'anzahl_artikel': anzahl_artikel,
                 'plaetze_bebucht': booked_plaetze, 'plaetze_unbebucht': unbooked_plaetze}
+
+
+def index(request):
+    """Render static index page."""
+    return render_to_response('myplfrontend/index.html', {}, context_instance=RequestContext(request))
     
 
 def lager_info(request):
     """Render a page with basic information about the Lager."""
-    # TODO: move to http and inline code above
+    # TODO: inline code above
     info = _lager_info()
     
     extra_info = kernelapi.get_statistics()
@@ -107,10 +90,14 @@ def lager_info(request):
     
 def kommischein_info(request, kommischeinid):
     """kommischein ist auch bekannt als picklist, retrievallist oder provisioninglist."""
+
+    #FIXME Here is no return value - is this view still in use / to be used ???
+
     # TODO: move to http, mixme, md
     kerneladapter = Kerneladapter()
     kommischein = {}
     try:
+        # WATCHOUT: when moving to http: unit_detail has some different keys than unit_info!
         unit = kerneladapter.unit_info(mui)
     except:
         server = couchdb.client.Server(COUCHSERVER)
@@ -136,7 +123,7 @@ def kommischein_info(request, kommischeinid):
    
 
 def info_panel(request):
-    """Renders a page, that shows an info panel for the employees in the store"""
+    """Renders a page, that shows an info panel for the employees in the store."""
     kerneladapter = Kerneladapter()
     # TODO: switch to http
     pipeline = kerneladapter.provpipeline_list_new()

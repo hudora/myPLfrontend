@@ -6,4 +6,3 @@ Django==1.0.2-final
 python-memcached
 cs
 husoftm
-mypl
