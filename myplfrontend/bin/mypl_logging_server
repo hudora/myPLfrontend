@@ -68,9 +68,9 @@ def init_broker():
                            password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
     chan = conn.channel()
     # ensured the required routing is set-up
-    chan.exchange_declare(exchange="log", type="direct", durable=True, auto_delete=False)
+    chan.exchange_declare(exchange="log#mypl", type="direct", durable=True, auto_delete=False)
     chan.queue_declare(queue="log#mypl", durable=True, exclusive=False, auto_delete=False)
-    chan.queue_bind(queue="log#mypl", exchange="log", routing_key="log#mypl")
+    chan.queue_bind(queue="log#mypl", exchange="log#mypl", routing_key="log#mypl")
     return conn, chan
     
 
@@ -82,8 +82,11 @@ def process_messages(chan, options):
         msg = chan.basic_get("log#mypl")
         if not msg:
             break
-        
+       
         dispatch = json.loads(msg.body)
+        if options.debug:
+            print dispatch
+
         guid = dispatch['guid']
         try:
              doc = db[guid]
@@ -98,7 +101,7 @@ def process_messages(chan, options):
 def main(options, args):
     conn, chan = init_broker()
     
-    if not options.daemon:
+    if not options.loop:
         process_messages(chan, options)
     else:
         while True:
