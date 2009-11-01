@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""
+mypl_logging_server - schreibt couchdb log nachrichten in couchdb
+
+Created by Maximillian Dornseif on 2009-11-01.
+Copyright (c) 2009 HUDORA. All rights reserved.
+"""
+
+
+__revision__ = '$Revision$'
+
+help_message = '''Read logging messages from queuing system and feed them to CouchDB for later audit.'''
+
+
+import couchdb.client
+import huTools.luids
+import re
+import simplejson as json
+import smtplib
+import socket
+import time
+
+from amqplib import client_0_8 as amqp
+from huTools.calendar.formats import rfc3339_date
+from optparse import OptionParser
+
+COUCHSERVER = "http://couchdb1.local.hudora.biz:5984" # where CouchDB is running
+COUCHDB_NAME = "mypl_log" # CouchDB database to use
+
+
+def _setup_couchdb():
+    """Get a connection handler to the CouchDB Database, creating it when needed."""
+    server = couchdb.client.Server(COUCHSERVER)
+    if COUCHDB_NAME in server:
+        return server[COUCHDB_NAME]
+    else:
+        return server.create(COUCHDB_NAME)
+    
+
+def parse_commandline():
+    """Parse the commandline and return information."""
+    
+    parser = OptionParser(version=True)
+    parser.version = "%%prog %s" % (__revision__.strip('$Revision: '))
+    parser.description = 'Read mails to be send from message queue and deliver them to SMTP Server.'
+    
+    parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
+    parser.add_option('-d', '--debug', action='store_true', dest='debug',
+                      help='Enables debugging mode')
+    parser.add_option('-l', '--loop', action='store_true',
+                      help='Run continuesly checking for new messages every --sleep seconds')
+    parser.add_option('-s', '--sleep', action='store', type='float', default=31,
+                      help='Sleep intervals between processing attempts [%default]')
+    parser.add_option('-p', '--messagepause', action='store', type='float', default=0.2,
+                      help='Sleep intervals between messages [%default]')
+                      
+    options, args = parser.parse_args()
+    
+    if len(args) > 0:
+        parser.error('incorrect number of arguments')
+    return options, args
+    
+
+def init_broker():
+    # init Message Broker Connection
+    conn = amqp.Connection(host="rabbitmq.local.hudora.biz:5672 ", userid="mypl",
+                           password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
+    chan = conn.channel()
+    # ensured the required routing is set-up
+    chan.exchange_declare(exchange="log", type="direct", durable=True, auto_delete=False)
+    chan.queue_declare(queue="log#mypl", durable=True, exclusive=False, auto_delete=False)
+    chan.queue_bind(queue="log#mypl", exchange="log", routing_key="log#mypl")
+    return conn, chan
+    
+
+def process_messages(chan, options):
+    
+    db = _setup_couchdb()
+    
+    while True:
+        msg = chan.basic_get("log#mypl")
+        if not msg:
+            break
+        
+        dispatch = json.loads(msg.body)
+        guid = dispatch['guid']
+        try:
+             doc = db[guid]
+        except couchdb.client.ResourceNotFound:
+             doc = {'created_at': rfc3339_date()}
+        doc.update(dispatch)
+        db[guid] = doc
+        chan.basic_ack(msg.delivery_tag)
+        time.sleep(options.messagepause)
+    
+
+def main(options, args):
+    conn, chan = init_broker()
+    
+    if not options.daemon:
+        process_messages(chan, options)
+    else:
+        while True:
+            time.sleep(options.sleep)
+            process_messages(chan, options)
+    
+    chan.close()
+    conn.close()
+    
+
+options, args = parse_commandline()
+main(options, args)
