@@ -27,7 +27,15 @@
     <div id="body_div">
       <h2>{% block headline %}myPL{% if title %}: {{title}}{% endif %}{% endblock%}</h2>
       <div id="content">
-        {% block content %}{% endblock %}
+       	{% if messages %}
+	<h3>Nachrichten</h3>
+	<ul>	
+	{% for message in messages %}
+	<li>{{ message }}</li>
+	{% endfor %}
+	</ul>
+	{% endif %}
+	{% block content %}{% endblock %}
       </div>
     </div>
     </body>
