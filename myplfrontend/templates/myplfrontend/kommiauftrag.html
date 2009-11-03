@@ -109,9 +109,13 @@
       $(function() { // This gets executed as document-ready function
         $('#priority-select > input').rating('select', 'p{{kommiauftrag.priority}}');
         $('#priority-select').attr({'action': 'set_priority/'});
-        {% ifnotequal kommiauftrag.status "new" %}
-        $('#priority-select > input').rating('readOnly', true);
-        {% endifnotequal %}
+        {% if not priority_change_allowed %}
+            $('#priority-select > input').rating('readOnly', true);
+        {% else %}
+            {% ifnotequal kommiauftrag.status "new" %} 
+                $('#priority-select > input').rating('readOnly', true);
+            {% endifnotequal %}
+        {% endif %}
       });
       </script>
     </td>

@@ -11,7 +11,7 @@ import kernelapi
 import myplfrontend.tools
 import simplejson as json
 from cs.zwitscher import zwitscher
-from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import permission_required
 from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
@@ -386,6 +386,7 @@ def kommiauftrag_list(request):
     
 
 @require_login
+@permission_required('mypl.can_change_priority')
 def kommiauftrag_set_priority(request, kommiauftragnr):
     priority = int(request.POST.get('priority').strip('p'))
     data = json.dumps({'explanation': 'Prioritaet auf %d durch %s geaendert' % (priority, 
@@ -482,11 +483,10 @@ def kommiauftrag_show(request, kommiauftragnr):
     title =  'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
         title += ' (archiviert)'
-    return render_to_response('myplfrontend/kommiauftrag.html', 
+    priority_change_allowed = request.user.has_perm('mypl.can_change_priority')
+    return render_to_response('myplfrontend/kommiauftrag.html',
                               {'title': title,
                                'kommiauftrag': kommiauftrag,
                                'orderlines': orderlines, 'kommischeine': kommischeine,
-                               'auditlines': audit},
+                               'auditlines': audit, 'priority_change_allowed': priority_change_allowed},
                               context_instance=RequestContext(request))
-
-
