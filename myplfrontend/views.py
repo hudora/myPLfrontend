@@ -20,6 +20,7 @@ from hudjango.auth.decorators import require_login
 from mypl.kernel import Kerneladapter
 from mypl.models import Lieferschein, Event, get_provisionings_by_id
 from mypl.tools import get_products_to_ship_today
+from myplfrontend.forms import palletheightForm
 from operator import itemgetter
 from produktpass.models import Product
 import cs.masterdata.article
@@ -354,13 +355,27 @@ def unit_show(request, mui):
     
     unit = kernelapi.get_unit(mui)
     
+    if request.method == "POST":
+        form = palletheightForm(request.POST)
+        if unit.get('archived'):
+            #message
+            pass
+
+        elif form.is_valid():
+            kernelapi.set_pallet_height(mui, form.cleaned_data['height'])
+
+    else:
+        form = palletheightForm({'height': unit['height']})
+
+
     title = 'Unit %s' % mui
     if unit.get('archived'):
         title += ' (archiviert)'
     audit = myplfrontend.kernelapi.get_audit('selection/unitaudit', mui)
     return render_to_response('myplfrontend/unit_detail.html',
                               {'title': title,
-                               'unit': unit, 'audit': audit},
+                               'unit': unit, 'audit': audit,
+                               'paletform': form},
                               context_instance=RequestContext(request))
     
 

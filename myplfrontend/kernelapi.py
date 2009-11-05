@@ -31,6 +31,7 @@ def get_article_audit(artnr):
     return audit
     
 
+    
 def get_movements_list():
     """Liefert eine Liste aller nicht erledigten Movements."""
     httpconn = httplib2.Http()
@@ -323,6 +324,24 @@ def _get_data_from_kernel(path):
         raise RuntimeError("can't get reply from kernel")
 
 
+def _post_data_to_kernel(path, data):
+    """Send a data dict to the kernel. It encodes this as json for you.
+    Return a dict with data from the kernel, gotten from SERVER/path.
+
+    It does a POST request, if there is a reply, it decodes the json for you.
+    """
+
+    encoded_data = json.dumps(data)
+
+    httpconn = httplib2.Http()
+    resp, content = httpconn.request(KERNELURL + '/%s' % path, 'POST', body=encoded_data)
+
+    if resp.status == 201:
+        return json.loads(content)
+    else:
+        raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
+
+
 def location_list():
     """Returns the full list of locations in the warehouse."""
     return _get_data_from_kernel('location')
@@ -384,3 +403,9 @@ def unit_detail(mui):
      'source': 'umlagerung'}
     """
     return _get_data_from_kernel("unit/%s" % mui)
+
+
+def set_pallet_height(mui, height):
+    """Set the height of a pallet and return the pallet data."""
+
+    return _post_data_to_kernel("unit/%s" % mui, {'height': height})
