@@ -321,6 +321,8 @@ def movement_show(request, mid):
     """Informationen zu einer Bewegung"""
     
     movement = kernelapi.get_movement(mid)
+    if not movement:
+        raise Http404
     title = 'Movement %s' % mid
     if movement.get('archived'):
         title += ' (archiviert)'
@@ -333,6 +335,8 @@ def pick_show(request, pickid):
     """Informationen zu einem Pick"""
     
     pick = kernelapi.get_pick(pickid)
+    if not pick:
+        raise Http404
     title = 'Pick %s' % pickid
     if pick.get('archived'):
         title += ' (archiviert)'

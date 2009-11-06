@@ -11,14 +11,17 @@
 
         <p>
                 <ul style="margin-top: 10px;border:1px solid grey">
-                <li>Produkt: {{movement.product|artnr2name}}
-                             ({{movement.product|link_product}})</li>
+                <li>Produkt: {{movement.artnr|artnr2name}}
+                             ({{movement.artnr|link_product}})</li>
                 <li>Ausgangsplatz: {{movement.from_location|link_location}}</li>
                 <li>Zielplatz: {{movement.to_location|link_location}}</li>
                 <li>NVE: {{movement.mui|link_mui}}</li>
                 <li>Vorgangsnummer: {{movement.oid|link_number}}
-                {% if pick.attributes.provpipeline_id %}
-                    <li>Kommiauftrag: {{movement.attributes.provpipeline_id|link_kommiauftrag}}</li>
+                {% if movement.provpipeline_id %}
+                    <li>Kommiauftrag: {{movement.provpipeline_id|link_kommiauftrag}}</li>
+                {% endif %}
+                {% if movement.reason %}
+                    <li>Auslöser: {{movement.reason}}</li>
                 {% endif %}
                 <li>Status: {{movement.status}}</li>
                 <li>Erstellt am: {{movement.created_at}}</li>

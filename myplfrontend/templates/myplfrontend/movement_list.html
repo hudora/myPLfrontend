@@ -22,7 +22,7 @@
 </tr>
 {% for m in movements %}
   <tr>
-    <td>{{ m.id|link_number }}</td>
+    <td>{{ m.oid|link_number }}</td>
     <td>{{ m.from_location|link_location }}</td>
     <td>{{ m.to_location|link_location }}</td>
     <td>{{ m.artnr|link_product }}</td>
@@ -48,7 +48,7 @@
   </tr>
 {% for m in picks %}
   <tr>
-    <td>{{ m.id|link_number }}</td>
+    <td>{{ m.oid|link_number }}</td>
     <td>{{ m.from_location|link_location }}</td>
     <td>{{ m.menge }} mal {{ m.artnr|link_product }}</td>
     <td>{{ m.created_at }}</td>
