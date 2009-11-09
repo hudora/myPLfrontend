@@ -262,6 +262,8 @@ def fix_timestamp(value):
     """Converts a single string timestamp to a datetime object in the local timezone.
     Timestamp is assumed to be UTC.
     """
+    if not value:
+        return value
     value = value.split('.')[0]
     if len(value) == 17:
         # bug in legacy records: 20091015T00222559

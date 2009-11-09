@@ -447,8 +447,11 @@ def kommiauftrag_show(request, kommiauftragnr):
     orderlines = []
     if 'orderlines' in kommiauftrag and not kommiauftrag.get('archived'):
         for orderline in kommiauftrag['orderlines']:
-            orderline['picksuggestion'] = kerneladapter.find_provisioning_candidates(orderline['menge'],
-                                                                                     orderline['artnr'])
+            # This needs a new API
+            #orderline['picksuggestion'] = kerneladapter.find_provisioning_candidates(orderline['menge'],
+            #                                                                         orderline['artnr'])
+            orderline['picksuggestion'] = None
+            
             orderline['fehler'] = ''
             if orderline['picksuggestion'] and orderline['picksuggestion'][0] != 'error':
                 orderline['available'] = True
