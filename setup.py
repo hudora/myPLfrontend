@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""myPLfrontend is xXXXx
+"""myPLfrontend is the frontend to the kernelE WMS
 """
 
 # setup.py
-# Created by johan on 2009-10-29 for HUDORA.
+# Created by j.otten@hudora.de on 2009-10-29 for HUDORA.
 # Copyright (c) 2009 HUDORA. All rights reserved.
 
 __revision__ = '$Revision: 6862 $'
@@ -12,10 +12,10 @@ __revision__ = '$Revision: 6862 $'
 from setuptools import setup, find_packages
 
 setup(name='myPLfrontend',
-      maintainer='johan',
+      maintainer='j.otten@hudora.de',
       # maintainer_email='xXXXx@hudora.de',
-      version='1.0',
-      description='xXXXx FILL IN HERE xXXXx',
+      version='1.0p1',
+      description='Web-Frontend to the kernelE WMS',
       long_description=__doc__,
       classifiers=['License :: OSI Approved :: BSD License',
                    'Intended Audience :: Developers',
