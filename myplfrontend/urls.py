@@ -3,7 +3,7 @@ from myplfrontend.views import lager_info, article_detail
 from myplfrontend.views import article_audit, lagerplatz_detail, lagerplaetze
 from myplfrontend.views import abc, index
 from myplfrontend.views import penner, info_panel
-from myplfrontend.views import artikel_heute, kommischein_info
+from myplfrontend.views import artikel_heute#, kommischein_info
 
 urlpatterns = patterns('myplfrontend.views',
     (r'^$', index),
@@ -21,13 +21,12 @@ urlpatterns = patterns('myplfrontend.views',
     (r'^produkte/(?P<artnr>.*)/audit/$', 'article_audit'),
     (r'^produkte/(?P<artnr>.*)/$', 'article_detail'),
     
-    (r'^info/$',                             lager_info),
-    (r'^kommischein/(?P<kommid>.*)/$',       kommischein_info),
-    (r'^plaetze/$',                          lagerplaetze),
-    (r'^plaetze/(?P<location>.+)/$',         lagerplatz_detail),
-    (r'^abc/$',                              abc),
-    (r'^penner/$',                           penner),
-    (r'^komissionierung/infopanel/$',        info_panel),
-    (r'^artikel_heute/$',                    artikel_heute),
+    (r'^info/$', lager_info),
+    #(r'^kommischein/(?P<kommid>.*)/$', kommischein_info),
+    (r'^plaetze/$', lagerplaetze),
+    (r'^plaetze/(?P<location>.+)/$', lagerplatz_detail),
+    (r'^abc/$', abc),
+    (r'^penner/$', penner),
+    (r'^komissionierung/infopanel/$', info_panel),
+    (r'^artikel_heute/$', artikel_heute),
 )
-

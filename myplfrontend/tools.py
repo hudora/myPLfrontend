@@ -29,7 +29,7 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
         
         if direktfahrt:
             shippingkey = "%s_direktfahrt" % (shouldprocess)
-        elif order.get('kep', False) :
+        elif order.get('kep', False):
             shippingkey = "%s_kep" % (shouldprocess)
         else:
             shippingkey = "%s_normal" % (shouldprocess)
@@ -53,6 +53,7 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
 
 class toolsTests(unittest.TestCase):
     """Some tests for the tools-functionalities"""
+    
     def setUp(self):
         pass
 

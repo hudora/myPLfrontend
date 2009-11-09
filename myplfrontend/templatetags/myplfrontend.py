@@ -6,7 +6,6 @@
 from django import template
 from django.utils.html import escape 
 from django.utils.safestring import mark_safe 
-from produktpass.models import Product
 
 register = template.Library()
 

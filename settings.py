@@ -15,8 +15,8 @@ import django
 DJANGO_ROOT = os.path.dirname(os.path.realpath(django.__file__))
 SITE_ROOT = os.path.dirname(os.path.realpath(__file__))
 
-DEBUG = False
-TEMPLATE_DEBUG = False
+DEBUG = True
+TEMPLATE_DEBUG = True
 if DEBUG:
     TEMPLATE_STRING_IF_INVALID = "__%s__"
 else:
@@ -42,8 +42,8 @@ INSTALLED_APPS = (
     'django.contrib.comments', 
     'django.contrib.markup',
     #'debug_toolbar',
-    #'hudoratools',
-    #'hudjango',
+    'hudoratools',
+    'hudjango',
     
     'myplfrontend',
 )
@@ -135,9 +135,9 @@ DATABASE_NAME = 'test.db'
 # DATABASE_PASSWORD = 'ge3Xei2O'
 # DATABASE_USER = 'hudora'
 
-SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
-EMAIL_HOST = 'mail.hudora.biz'
-EMAIL_USE_TLS = True
+#SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
+#EMAIL_HOST = 'mail.hudora.biz'
+#EMAIL_USE_TLS = True
 
 ADMINS = (
     ('Zwitschr', 'django@cybernetics.hudora.biz'),

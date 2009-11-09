@@ -22,7 +22,7 @@ class SimpleTests(TestCase):
     def setUp(self):
         """Initial Client for further Tests."""
         self.client = Client()
-        self.client.login(username='testclient_staff', password='password') 
+        self.client.login(username='testclient_staff', password='password')
     
     def test_index(self):
         """Test that index page works and is password protected."""
@@ -44,6 +44,7 @@ class SimpleTests(TestCase):
         
 
 class HelperFunctionTests(TestCase):
+
     def setUp(self):
         pass
 
@@ -78,14 +79,13 @@ class HelperFunctionTests(TestCase):
         articles = myplfrontend.views._get_softm_articles()
         self.assertNotEqual(len(articles), 0)
         for a in articles:
-            self.assertTrue(a.has_key('artnr'))
-            self.assertTrue(a.has_key('name'))
-            self.assertTrue(a.has_key('full_quantity'))
-            self.assertTrue(a.has_key('available_quantity'))
-            self.assertTrue(a.has_key('pick_quantity'))
-            self.assertTrue(a.has_key('movement_quantity'))
-            self.assertTrue(a.has_key('buchbestand'))
-        pass
+            self.assertTrue('artnr' in a)
+            self.assertTrue('name' in a)
+            self.assertTrue('full_quantity' in a)
+            self.assertTrue('available_quantity' in a)
+            self.assertTrue('pick_quantity' in a)
+            self.assertTrue('movement_quantity' in a)
+            self.assertTrue('buchbestand' in a)
     
 
 if __name__ == '__main__':

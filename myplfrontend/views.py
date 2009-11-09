@@ -3,14 +3,6 @@
 
 """View functions for myplfrontend."""
 
-import couchdb
-import datetime
-import django.views.decorators.http
-import husoftm.bestaende
-import kernelapi
-import myplfrontend.tools
-import simplejson as json
-from cs.zwitscher import zwitscher
 from django.contrib.auth.decorators import permission_required
 from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import render_to_response
@@ -18,16 +10,17 @@ from django.template import RequestContext
 from huTools.robusttypecasts import float_or_0
 from hudjango.auth.decorators import require_login
 from mypl.kernel import Kerneladapter
-from mypl.models import Lieferschein, Event, get_provisionings_by_id
-from mypl.tools import get_products_to_ship_today
 from myplfrontend.forms import palletheightForm
-from operator import itemgetter
-from produktpass.models import Product
+
+import couchdb
 import cs.masterdata.article
-
-
-import httplib2
-COUCHSERVER = "http://couchdb.local.hudora.biz:5984"
+import cs.zwitscher
+import datetime
+import django.views.decorators.http
+import husoftm.bestaende
+import itertools
+import myplfrontend.kernelapi
+import myplfrontend.tools
 
 
 def _get_locations_by_height():
@@ -38,8 +31,8 @@ def _get_locations_by_height():
     booked, unbooked = {}, {}
 
     # i suspect having a server-side 'location_detail_list' would provide a great speedup here
-    for location in kernelapi.location_list():
-        info = kernelapi.location_detail(location)
+    for location in myplfrontend.kernelapi.get_location_list():
+        info = myplfrontend.kernelapi.get_location(location)
         loc_info = dict(name=info['name'], preference=info['preference'])
         height = info['height']
         if (info['reserved_for'] or info['allocated_by']):
@@ -53,7 +46,7 @@ def _lager_info():
     """This is the logic for the lager_info view.
 
     A dict is created, containing information about warehouse status."""
-    anzahl_artikel = len(kernelapi.product_list())
+    anzahl_artikel = len(myplfrontend.kernelapi.get_article_list())
 
     booked_plaetze, unbooked_plaetze = _get_locations_by_height()
 
@@ -79,16 +72,16 @@ def lager_info(request):
     # TODO: inline code above
     info = _lager_info()
     
-    extra_info = kernelapi.get_statistics()
+    extra_info = myplfrontend.kernelapi.get_statistics()
 
-    extra_info['oldest_movement'] = kernelapi.fix_timestamp(extra_info['oldest_movement'])
-    extra_info['oldest_pick'] = kernelapi.fix_timestamp(extra_info['oldest_pick'])
+    extra_info['oldest_movement'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_movement'])
+    extra_info['oldest_pick'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_pick'])
 
     info.update(extra_info)
 
     return render_to_response('myplfrontend/lager_info.html', info, context_instance=RequestContext(request))
 
-    
+''' commented out for pylint    
 def kommischein_info(request, kommischeinid):
     """kommischein ist auch bekannt als picklist, retrievallist oder provisioninglist."""
 
@@ -121,31 +114,24 @@ def kommischein_info(request, kommischeinid):
     #      {created_at,{{2009,10,9},{5,4,29}}},
     #      {provisioning_ids,["P08147696","P08147704","P08147715"]}]}
     # 
-   
+'''
+
 
 def info_panel(request):
     """Renders a page, that shows an info panel for the employees in the store."""
-    kerneladapter = Kerneladapter()
-    # TODO: switch to http
-    pipeline = kerneladapter.provpipeline_list_new()
+    pipeline = [myplfrontend.kernelapi.get_kommiauftrag(kommi) for kommi in myplfrontend.kernelapi.get_kommiauftrag_list()]
+    for kommi in pipeline:
+        kommi['orderlines_count'] = len(kommi.get('orderlines', []))
+
     db = myplfrontend.tools.get_pickinfo_from_pipeline_data(pipeline)
-    
-    from django.db import connection
-    cursor = connection.cursor()
-    cursor.execute("SELECT COUNT(*) FROM mypl_lieferschein ls, mypl_lieferscheinposition lsp "
-                  + "WHERE ls.id=lsp.lieferschein_kopf_id AND ls.status='in_interface' "
-                  + "AND DATE(ls.updated_at)=CURRENT_DATE;")
-    row_done = cursor.fetchone()
-    cursor.execute("SELECT COUNT(*) FROM mypl_lieferschein ls, mypl_lieferscheinposition lsp "
-                  + "WHERE ls.id=lsp.lieferschein_kopf_id AND (ls.status='provisioning_ready' OR "
-                  + "ls.status='in_provisioning') AND DATE(ls.updated_at)=CURRENT_DATE;")
-    row_inwork = cursor.fetchone()
-    cursor.close()
+
+    # FIXME: Der Code hier beruht noch teilweise auf den Daten, die aus der zugeh. Django DB kamen, zB. postions['done'] wurde vorher
+    # aus dieser DB berechnet. Wie können wir die erledigten Positionen aus dem Kernel / couchdb / ... erhalten?
     
     positions = {}
-    positions['done'] = int(row_done[0])
-    positions['inwork'] = int(row_inwork[0])
-    if 'yes' in db:
+    positions['done'] = 0
+    positions['inwork'] = 0
+    if 'yes' in db: # FIXME aus dem get_pickinfo_from_pipeline_data() code verstehe ich nicht, wo hier ein key 'yes' herkommen soll?
         positions['todo'] = int(db['yes']['orderlines_count'])
     else:
         positions['todo'] = 0
@@ -154,42 +140,49 @@ def info_panel(request):
         positions['percent_done'] = (100.0/positions['total']) * positions['done']
     else:
         positions['percent_done'] = 0
-    
-    return render_to_response('myplfrontend/info_panel.html', 
+    return render_to_response('myplfrontend/info_panel.html',
                               {'pipeline': pipeline, 'db': db, 'positions': positions},
                               context_instance=RequestContext(request))
     
 
 def artikel_heute(request):
     """Renders a view of all articles and quantities that have to be shipped today"""
-    # TODO: convert to HTTP-API and move get_products_to_ship_today() inline
+
+    # summarize product quantities
+    products = {}
+    for komminr in myplfrontend.kernelapi.get_kommiauftrag_list():
+        kommi = myplfrontend.kernelapi.get_kommiauftrag(komminr)
+        if kommi['shouldprocess'] == 'yes':
+            for orderline in kommi['orderlines']:
+                artnr = orderline['artnr']
+                products[artnr] = products.get(artnr, 0) + orderline['menge']
+
     artikel_heutel = []
-    for artnr, quantity in get_products_to_ship_today().items():
-        try:
-            product = Product.objects.get(artnr=artnr)
-            total_weight = quantity * float_or_0(product.package_weight_kg)
-            total_volume = quantity * float_or_0(product.package_volume)
-            total_palettes = quantity / float_or_0(product.palettenfaktor, default=1.0)
-            artikel_heutel.append({'quantity': quantity, 'artnr': artnr, 'name': product.name,
-                                   'palettenfaktor': product.palettenfaktor, 'total_weight': total_weight,
+    for artnr, quantity in products.items():
+        product = cs.masterdata.article.eap(artnr)
+        if product:
+            total_weight = quantity * float_or_0(product["package_weight"]) / 1000. # kg
+            total_volume = quantity * float_or_0(product["package_volume_liter"])
+            total_palettes = quantity / float_or_0(product["palettenfaktor"], default=1.0)
+            artikel_heutel.append({'quantity': quantity, 'artnr': artnr, 'name': product["name"],
+                                   'palettenfaktor': product["palettenfaktor"], 'total_weight': total_weight,
                                    'total_volume': total_volume, 'paletten': total_palettes})
-        except Product.DoesNotExist:
-            zwitscher('%s: Kein Artikelpass. OMG! #error' % artnr, username='mypl')
+        else:
+            cs.zwitscher.zwitscher('%s: Nicht in CouchDB. OMG! #error' % artnr, username='mypl')
     return render_to_response('myplfrontend/artikel_heute.html', {'artikel_heute': artikel_heutel},
                               context_instance=RequestContext(request))
     
 
 def abc(request):
     """Render ABC Classification."""
-
-    # TODO: move to http://hurricane.local.hudora.biz:8000/abc
-    kerneladapter = Kerneladapter()
     klasses = {}
-    for name, klass in zip(('a', 'b', 'c'), kerneladapter.get_abc()):
+    for name, klass in myplfrontend.kernelapi.get_abc().items():
         tmp = []
         for (quantity, artnr) in klass:
-            mengen, nves = kerneladapter.count_product(artnr)
-            tmp.append((quantity, mengen[0], artnr, len(nves)))
+            product_detail = myplfrontend.kernelapi.get_article(artnr)
+            full_quantity = product_detail["full_quantity"]
+            nves_count = len(product_detail["muis"])
+            tmp.append((quantity, full_quantity, artnr, nves_count))
         klasses[name] = tmp
     return render_to_response('myplfrontend/abc.html', {'klasses': klasses},
                               context_instance=RequestContext(request))
@@ -197,22 +190,16 @@ def abc(request):
 
 def penner(request):
     """Render Products with no recent activity."""
-    # TODO: move to http://hurricane.local.hudora.biz:8000/abc
-    kerneladapter = Kerneladapter()
-    
-    abc_articles = []
-    for klass in kerneladapter.get_abc():
-        # collecting artnrs
-        abc_articles.extend([tmp[1] for tmp in klass])
-    
-    lagerbestand = kerneladapter.count_products()
-    artnrs = set([x[0] for x in lagerbestand])
-    artnrs -= set(abc_articles)
+    abc_articles = set(artnr for (m, artnr) in itertools.chain(*myplfrontend.kernelapi.get_abc().values()))
+    lagerbestand = set(myplfrontend.kernelapi.get_article_list())
+    artnrs = lagerbestand - abc_articles
     
     pennerliste = []
-    for artnr in sorted(artnrs):
-        mengen, nves = kerneladapter.count_product(artnr)
-        pennerliste.append((len(nves), mengen[0], artnr))
+    for artnr in artnrs:
+        product_detail = myplfrontend.kernelapi.get_article(artnr)
+        full_quantity = product_detail["full_quantity"]
+        nves_count = len(product_detail["muis"])
+        pennerliste.append((nves_count, full_quantity, artnr))
     pennerliste.sort(reverse=True)
     return render_to_response('myplfrontend/penner.html', {'pennerliste': pennerliste},
                               context_instance=RequestContext(request))
@@ -232,11 +219,11 @@ def lagerplaetze(request):
 def lagerplatz_detail(request, location):
     """Render details for a location."""
 
-    platzinfo = kernelapi.get_location(location)
+    platzinfo = myplfrontend.kernelapi.get_location(location)
 
     units = []
     for mui in platzinfo['allocated_by']:
-        units.append(kernelapi.get_unit(mui))
+        units.append(myplfrontend.kernelapi.get_unit(mui))
     
     # TODO: alle movements und korrekturbuchungen auf diesem Platz zeigen
     
@@ -252,12 +239,12 @@ def show_articles(request, want_softm):
         return HttpResponseRedirect(url)
     
     articles = []
-    for artnr in kernelapi.get_article_list():
-        tmp = kernelapi.get_article(artnr)
-        tmp['name'] = cs.masterdata.article.name(tmp['artnr'])
+    for artnr in myplfrontend.kernelapi.get_article_list():
+        article = myplfrontend.kernelapi.get_article(artnr)
+        article['name'] = cs.masterdata.article.name(article['artnr'])
         if want_softm:
-            tmp['buchbestand'] = husoftm.bestaende.buchbestand(lager=100, artnr=tmp['artnr'])
-        articles.append(tmp)
+            article['buchbestand'] = husoftm.bestaende.buchbestand(lager=100, artnr=article['artnr'])
+        articles.append(article)
     
     # TODO: Artikel finden, von dneen SoftM denkt, sie wären im myPL, von denen das myPL aber nichts weiss
     
@@ -273,10 +260,10 @@ def show_articles(request, want_softm):
 def article_detail(request, artnr):
     """Render details regarding an article."""
     
-    data = kernelapi.get_article(artnr)
+    data = myplfrontend.kernelapi.get_article(artnr)
     myunits = []
     for mynve in data['muis']:
-        myunits.append(kernelapi.get_unit(mynve))
+        myunits.append(myplfrontend.kernelapi.get_unit(mynve))
     
     title = 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr)
     bestand100 = None
@@ -297,7 +284,7 @@ def article_detail(request, artnr):
 
 def article_audit(request, artnr):
     """Render the Audit-Log (Artikelkonto) of a certain article."""
-    audit = kernelapi.get_article_audit(artnr)
+    audit = myplfrontend.kernelapi.get_article_audit(artnr)
     return render_to_response('myplfrontend/article_audit.html',
                               {'title': 'Artikelkonto %s' % artnr,
                                'artnr': artnr, 'audit': audit},
@@ -307,11 +294,11 @@ def article_audit(request, artnr):
 def bewegungen(request):
     """Liste aller offenen Picks und Movements"""
     movements = []
-    for movementid in sorted(kernelapi.get_movements_list()):
-        movements.append(kernelapi.get_movement(movementid))
+    for movementid in sorted(myplfrontend.kernelapi.get_movements_list()):
+        movements.append(myplfrontend.kernelapi.get_movement(movementid))
     picks = []
-    for pickid in sorted(kernelapi.get_picks_list()):
-        picks.append(kernelapi.get_pick(pickid))
+    for pickid in sorted(myplfrontend.kernelapi.get_picks_list()):
+        picks.append(myplfrontend.kernelapi.get_pick(pickid))
     return render_to_response('myplfrontend/movement_list.html',
                               {'movements': movements, 'picks': picks},
                               context_instance=RequestContext(request))
@@ -320,7 +307,7 @@ def bewegungen(request):
 def movement_show(request, mid):
     """Informationen zu einer Bewegung"""
     
-    movement = kernelapi.get_movement(mid)
+    movement = myplfrontend.kernelapi.get_movement(mid)
     if not movement:
         raise Http404
     title = 'Movement %s' % mid
@@ -334,7 +321,7 @@ def movement_show(request, mid):
 def pick_show(request, pickid):
     """Informationen zu einem Pick"""
     
-    pick = kernelapi.get_pick(pickid)
+    pick = myplfrontend.kernelapi.get_pick(pickid)
     if not pick:
         raise Http404
     title = 'Pick %s' % pickid
@@ -348,7 +335,7 @@ def pick_show(request, pickid):
 def unit_list(request):
     """Render a list of all MUIs/NVEs/SSCCs"""
     
-    muis = kernelapi.get_units_list()
+    muis = myplfrontend.kernelapi.get_units_list()
     return render_to_response('myplfrontend/unit_list.html',
                               {'title': 'Units im Lager', 'muis': sorted(muis)},
                               context_instance=RequestContext(request))
@@ -357,7 +344,7 @@ def unit_list(request):
 def unit_show(request, mui):
     """Render Details for an Unit."""
     
-    unit = kernelapi.get_unit(mui)
+    unit = myplfrontend.kernelapi.get_unit(mui)
     
     if request.method == "POST":
         form = palletheightForm(request.POST)
@@ -366,7 +353,7 @@ def unit_show(request, mui):
             pass
 
         elif form.is_valid():
-            kernelapi.set_pallet_height(mui, form.cleaned_data['height'])
+            myplfrontend.kernelapi.set_unit_height(mui, form.cleaned_data['height'])
 
     else:
         form = palletheightForm({'height': unit['height']})
@@ -386,12 +373,12 @@ def unit_show(request, mui):
 def kommiauftrag_list(request):
     """Render a view of entries beeing currently processed in the provpipeline."""
     kommiauftraege_new, kommiauftraege_processing, pipelincutoff = [], [], False
-    for kommiauftragnr in kernelapi.get_kommiauftrag_list():
-        kommiauftrag = kernelapi.get_kommiauftrag(kommiauftragnr)
+    for kommiauftragnr in myplfrontend.kernelapi.get_kommiauftrag_list():
+        kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
         if kommiauftrag['status'] == 'processing':
-            kommiauftraege_processing.append(kernelapi.get_kommiauftrag(kommiauftragnr))
+            kommiauftraege_processing.append(myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr))
         else:
-            kommiauftraege_new.append(kernelapi.get_kommiauftrag(kommiauftragnr))
+            kommiauftraege_new.append(myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr))
         
         kommiauftraege = kommiauftraege_processing + kommiauftraege_new
         if len(kommiauftraege) > 200:
@@ -408,12 +395,9 @@ def kommiauftrag_list(request):
 @permission_required('mypl.can_change_priority')
 def kommiauftrag_set_priority(request, kommiauftragnr):
     priority = int(request.POST.get('priority').strip('p'))
-    data = json.dumps({'explanation': 'Prioritaet auf %d durch %s geaendert' % (priority,
-                                                                                request.user.username),
-                       'priority': priority})
-    h = httplib2.Http()
-    resp, content = h.request('http://hurricane.local.hudora.biz:8000/kommiauftrag/%s/priority' % kommiauftragnr,
-                              'POST', data)
+    content = myplfrontend.kernelapi.set_kommiauftrag_priority(
+            explanation='Prioritaet auf %d durch %s geaendert' % (priority, request.user.username),
+            priority=priority)
     return HttpResponse(content, mimetype='application/json')
     
 
@@ -422,25 +406,19 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
 @permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
     begruendung = request.POST.get('begruendung').strip()
-    data = u'Kommiauftrag durch %s genullt. Begruendung: %s' % (request.user.username, begruendung)
-    h = httplib2.Http()
-    resp, content = h.request('http://hurricane.local.hudora.biz:8000/kommiauftrag/%s' % kommiauftragnr,
-                              'DELETE', data)
-    if resp['status'] == '204':
-       request.user.message_set.create(message='Auftrag wurde genullt')
-       zwitscher(u'Kommiauftrag %s durch %s genullt. Begruendung: %s' % (kommiauftragnr,
-                                                                         request.user.username,
-                                                                         begruendung), username='mypl')
-       return HttpResponseRedirect('../')
-    return HttpResponse("Fehler beim Nullen %r | %r" % (resp, content),
-                        mimetype='text/plain', status=500)
+    content = myplfrontend.kernelapi.kommiauftrag_nullen(kommiauftragnr, request.user.username, begruendung)
+    if content:
+        request.user.message_set.objects.create('%s erfolgreich genullt' % kommiauftragnr)
+        return HttpResponseRedirect('../')
+    else:
+        return HttpResponse("Fehler beim Nullen %r" % str(e), mimetype='text/plain', status=500)
     
 
 @require_login
 def kommiauftrag_show(request, kommiauftragnr):
     """Render a page with further information for a single Kommiauftrag"""
     
-    kommiauftrag = kernelapi.get_kommiauftrag(kommiauftragnr)
+    kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
     # TODO: move to HTTP, md
     kerneladapter = Kerneladapter()
     
@@ -463,31 +441,16 @@ def kommiauftrag_show(request, kommiauftragnr):
             orderlines.append(orderline)
     
     kommischeine = []
-    h = httplib2.Http()
     for kommischein_id in kommiauftrag.get('provisioninglists', []):
-        resp, content = h.request('http://hurricane.local.hudora.biz:8000/kommischein/%s' % kommischein_id,
-                                  'GET')
-        kommischein = {}
-        if resp.status == 200:
-            kommischein = json.loads(content)
-        else:
-            # kommiauftrag aus dem Archiv holen
-            server = couchdb.client.Server(COUCHSERVER)
-            db = server['mypl_archive']
-            # TODO: time out and retry with stale=ok
-            # see http://wiki.apache.org/couchdb/HTTP_view_API
-            for row in db.view('selection/kommischeine', key=kommischein_id, limit=1, include_docs=True):
-                kommischein = kernelapi.fix_timestamps(row.doc)
-        kommischein.update({'id': kommischein_id})
+        kommischein = myplfrontend.kernelapi.get_kommischein(kommischein_id)
         provisionings = []
         for provisioning_id in kommischein.get('provisioning_ids', []):
-            if kommischein.get('type', ) == 'picklist':
-                resp, content = h.request('http://hurricane.local.hudora.biz:8000/pick/%s' % provisioning_id,
-                                          'GET')
+            if kommischein.get('type') == 'picklist':
                 provisioning = {}
-                if resp.status == 200:
-                    provisioning = json.loads(content)
-                
+                try:
+                    provisioning = myplfrontend.kernelapi.get_pick(provisioning_id)
+                except RuntimeError:
+                    pass
                 provisioning.update({'id': provisioning_id})
                 provisionings.append(provisioning)
         kommischein['provisionings'] = provisionings
@@ -503,7 +466,7 @@ def kommiauftrag_show(request, kommiauftragnr):
     
     # TODO: change to unitaudit
     audit = myplfrontend.kernelapi.get_audit('fields/by_komminr', kommiauftragnr)
-    title =  'Kommissionierauftrag %s' % kommiauftragnr
+    title = 'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
         title += ' (archiviert)'
 
