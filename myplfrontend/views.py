@@ -408,7 +408,7 @@ def kommiauftrag_list(request):
 @permission_required('mypl.can_change_priority')
 def kommiauftrag_set_priority(request, kommiauftragnr):
     priority = int(request.POST.get('priority').strip('p'))
-    data = json.dumps({'explanation': 'Prioritaet auf %d durch %s geaendert' % (priority, 
+    data = json.dumps({'explanation': 'Prioritaet auf %d durch %s geaendert' % (priority,
                                                                                 request.user.username),
                        'priority': priority})
     h = httplib2.Http()
@@ -417,8 +417,9 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
     return HttpResponse(content, mimetype='application/json')
     
 
-@require_login
+@require_login # FIXME is this decorator still needed since we are using permission_required now?
 @django.views.decorators.http.require_POST
+@permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
     begruendung = request.POST.get('begruendung').strip()
     data = u'Kommiauftrag durch %s genullt. Begruendung: %s' % (request.user.username, begruendung)
@@ -505,10 +506,15 @@ def kommiauftrag_show(request, kommiauftragnr):
     title =  'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
         title += ' (archiviert)'
+
+    # FIXME: maybe its a cleaner approach to submit the user and handle the has_perm stuff
+    #        inside of the templates
     priority_change_allowed = request.user.has_perm('mypl.can_change_priority')
+    can_zeroise_provisioning = request.user.has_perm('mypl.can_zeroise_provisioning')
     return render_to_response('myplfrontend/kommiauftrag.html',
                               {'title': title,
                                'kommiauftrag': kommiauftrag,
                                'orderlines': orderlines, 'kommischeine': kommischeine,
-                               'auditlines': audit, 'priority_change_allowed': priority_change_allowed},
+                               'auditlines': audit, 'priority_change_allowed': priority_change_allowed,
+                               'can_zeroise_provisioning': can_zeroise_provisioning},
                               context_instance=RequestContext(request))

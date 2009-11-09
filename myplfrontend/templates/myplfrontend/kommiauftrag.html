@@ -298,13 +298,19 @@
 <div id="sonderfunktionen_button"><a href="#sonderfunktionen">Sonderfunktionen</a></div>
 
 <div id="sonderfunktionen">
-<h2>Kommiauftrag Nullen</h2>
 
+<h2>Kommiauftrag Nullen</h2>
+{% if can_zeroise_provisioning %}
 <form id="storno" method="post" action="nullen/">
    Begründung:
    <textarea name="begruendung"></textarea><br/><br/>
    <input type="submit" value="Nullen!">
 </form>
+{% else %}
+<p>
+Keine Berechtigung zum Nullen von Komiaufträgen.
+</p>
+{% endif %}
 </div>
 
 
