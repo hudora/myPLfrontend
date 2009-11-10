@@ -39,20 +39,20 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.admin',
-    'django.contrib.comments', 
+    'django.contrib.comments',
     'django.contrib.markup',
     #'debug_toolbar',
     'hudoratools',
     'hudjango',
-    
+
     'myplfrontend',
 )
 
 
-# TEMPLATE_DIRS = (
-#     os.path.join(SITE_ROOT, 'generic_templates')
-#     '/usr/local/www/www_intern/generic_templates/'
-# )
+TEMPLATE_DIRS = (
+    os.path.join(SITE_ROOT, 'generic_templates'),
+    '/usr/local/www/www_intern/generic_templates/',
+)
 
 
 TEMPLATE_CONTEXT_PROCESSORS = (
@@ -143,5 +143,6 @@ ADMINS = (
     ('Zwitschr', 'django@cybernetics.hudora.biz'),
     ('HUDORA Operations', 'edv@hudora.de'),
 )
+ADMINS = ()
 MANAGERS = ADMINS
 PREPEND_WWW = False
