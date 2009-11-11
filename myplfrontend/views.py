@@ -486,7 +486,8 @@ def kommiauftrag_show(request, kommiauftragnr):
                               context_instance=RequestContext(request))
 
 
-def requesttracker(_):
+def requesttracker(request):
     """Display a table containing requesttracker data from kernelE."""
     tracking_infos = myplfrontend.kernelapi.requesttracker()
-    return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos))
+    return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos),
+                              context_instance=RequestContext(request))
