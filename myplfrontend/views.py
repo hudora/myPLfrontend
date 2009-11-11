@@ -414,7 +414,23 @@ def kommiauftrag_nullen(request, kommiauftragnr):
         return HttpResponseRedirect('../')
     else:
         return HttpResponse("Fehler beim Nullen von %r" % kommiauftragnr, mimetype='text/plain', status=500)
-    
+
+
+@require_login # FIXME is this decorator still needed since we are using permission_required now?
+@django.views.decorators.http.require_POST
+@permission_required('mypl.can_cancel_movement')
+def bewegung_stornieren(request, movementid):
+    """Cancel a movement."""
+
+    content = myplfrontend.kernelapi.movement_stornieren(movementid)
+
+    if content:
+        cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movementid, request.user.username))
+        request.user.message_set.objects.create('%s erfolgreich storniert' % movementid)
+        return HttpResponseRedirect('../')
+    else:
+        return HttpResponse("Fehler beim stornieren", mimetype='text/plain', status=500)
+
 
 @require_login
 def kommiauftrag_show(request, kommiauftragnr):

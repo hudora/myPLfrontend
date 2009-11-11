@@ -699,6 +699,11 @@ def kommiauftrag_nullen(kommiauftragnr, username, begruendung):
     return content
 
 
+def movement_stornieren(oid):
+    """Cancel a movement."""
+    return _send_delete_to_kernel('movement/%s' % oid)
+
+
 def find_provisioning_candidates(menge, artnr):
     """Hiermit kann ein Komissioniervorschlag für eine bestimmte Menge eines Artikels erstellt werden.
 
