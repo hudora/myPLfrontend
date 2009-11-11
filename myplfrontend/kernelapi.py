@@ -121,7 +121,7 @@ def _post_data_to_kernel(path, data):
 
     if resp.status == 201 or resp.status == 200:
         return json.loads(content)
-    elif resp.status == 404:
+    elif resp.status in [403, 404]: # FIXME: Maybe we need a more fine grained error handling?
         return None
     else:
         raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
@@ -702,7 +702,7 @@ def kommiauftrag_nullen(kommiauftragnr, username, begruendung):
 def find_provisioning_candidates(menge, artnr):
     """Hiermit kann ein Komissioniervorschlag für eine bestimmte Menge eines Artikels erstellt werden.
 
-    Falls keine passenden Mengen gefunden werden können - z.B. wil erst noch eine Umlagerung durchgeführt
+    Falls keine passenden Mengen gefunden werden können - z.B. will erst noch eine Umlagerung durchgeführt
     werden muss - wird der Statuscode None zurückgegeben. Sollte das Lager weniger Bestand als gefordert haben,
     wird ein RuntimeError (Statuscode 403) zurückgegeben.
 
