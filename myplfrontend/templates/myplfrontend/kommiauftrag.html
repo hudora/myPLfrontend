@@ -197,7 +197,7 @@
     <td>{% if orderline.gewicht %}{{orderline.gewicht|g2kg}} kg{% endif %}</td>
     <td>{% if orderline.volumen %}{{orderline.volumen|floatformat}} L{% endif %}</td>
     <td>{%if orderline.available%}<img src="{{ MEDIA_URL }}chameleon/green/new.gif"/>{%endif%}
-        {{orderline.fehler}}
+        {% if orderline.fehler %} {{orderline.fehler}} {% endif %}
     </td>
   </tr>
 {% endfor %}

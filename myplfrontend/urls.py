@@ -3,7 +3,6 @@ from myplfrontend.views import lager_info, article_detail
 from myplfrontend.views import article_audit, lagerplatz_detail, lagerplaetze
 from myplfrontend.views import abc, index
 from myplfrontend.views import penner, info_panel
-from myplfrontend.views import artikel_heute#, kommischein_info
 
 urlpatterns = patterns('myplfrontend.views',
     (r'^$', index),
@@ -28,5 +27,6 @@ urlpatterns = patterns('myplfrontend.views',
     (r'^abc/$', abc),
     (r'^penner/$', penner),
     (r'^komissionierung/infopanel/$', info_panel),
-    (r'^artikel_heute/$', artikel_heute),
+    (r'^artikel_heute/$', 'artikel_heute'),
+    (r'^requesttracker/$', 'requesstracker'),
 )

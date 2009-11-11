@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-kernelapi.py
+kernelapi.py - accesses kernelE via Python.
+
+See http://cybernetics.../kernelE/trunk/docs/kernal-API.rst for details.
 
 Created by Maximillian Dornseif on 2009-10-16.
 Copyright (c) 2009 HUDORA. All rights reserved.
@@ -117,9 +119,9 @@ def _post_data_to_kernel(path, data):
     httpconn = httplib2.Http()
     resp, content = httpconn.request(KERNELURL + '/%s' % path, 'POST', body=encoded_data)
 
-    if resp.status == 201:
+    if resp.status == 201 or resp.status == 200:
         return json.loads(content)
-    elif resp['status'] == 404:
+    elif resp.status == 404:
         return None
     else:
         raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
@@ -181,20 +183,14 @@ def get_article_list():
 def get_article(artnr):
     """Liefert informationen zu einem Artikel im Kernel.
 
-    >>> myplfrontend.kernelapi.get_article_audit(artnr)
-    [{'_id': '01020-a1252308278.201882',
-      '_rev': '2-e50b5cbf73d4440a26b84e105ea86972',
-      'created_at': datetime.datetime(2009, 9, 7, 9, 24, 38),
-      'description': 'Pick auf 340059981001094393',
-      'mui': '340059981001094393',
-      'product': '01020',
-      'quantity': -2,
-      'ref': '',
-      'transaction': 'P08055535',
-      'type': 'articleaudit'},
-     {'_id': '01020-a1246254005.684696',
-      '_rev': '2-998a3cccfdb6016a6928b3489adbca5d',...},
-      ... ]
+    >>> myplfrontend.kernelapi.get_article('01020'))
+    {'artnr': '01020',
+     'muis': ['340059981001348267', '340059981001351939', '340059981001350925',
+              '340059981002392177', '340059981002392184', '340059981001359928'],
+     'full_quantity': 104,
+     'pick_quantity': 0,
+     'available_quantity': 104,
+     'movement_quantity': 0}
     
     """
     return _get_data_from_kernel('product/%s' % artnr)
@@ -701,3 +697,26 @@ def kommiauftrag_nullen(kommiauftragnr, username, begruendung):
     data = u'Kommiauftrag durch %s genullt. Begruendung: %s' % (username, begruendung)
     content = _send_delete_to_kernel('kommiauftrag/%s' % kommiauftragnr, data)
     return content
+
+
+def find_provisioning_candidates(menge, artnr):
+    """Hiermit kann ein Komissioniervorschlag für eine bestimmte Menge eines Artikels erstellt werden.
+
+    Falls keine passenden Mengen gefunden werden können - z.B. wil erst noch eine Umlagerung durchgeführt
+    werden muss - wird der Statuscode None zurückgegeben. Sollte das Lager weniger Bestand als gefordert haben,
+    wird ein RuntimeError (Statuscode 403) zurückgegeben.
+
+    >>> myplfrontend.kernelapi.find_provisioning_candidates(1, 10147)
+    {"retrievals":[],"picks":[{"menge":1,"mui":"340059981002563591"}]}
+
+    """
+    return _post_data_to_kernel("product/%s" % artnr, data=dict(menge=menge))
+
+
+def requesttracker():
+    """Zeigt Informationen über den RequestTracker an.
+
+    Der Requestracker koordiniert, welche Palettne herunter gelagert werden sollen.
+   
+    """
+    return _get_data_from_kernel("requesttracker")

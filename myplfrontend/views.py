@@ -85,6 +85,8 @@ def kommischein_info(request, kommischeinid):
     """kommischein ist auch bekannt als picklist, retrievallist oder provisioninglist."""
 
     #FIXME Here is no return value - is this view still in use / to be used ???
+   
+   from mypl.kernel import Kerneladapter
 
     # TODO: move to http, mixme, md
     kerneladapter = Kerneladapter()
@@ -372,6 +374,7 @@ def unit_show(request, mui):
 def kommiauftrag_list(request):
     """Render a view of entries beeing currently processed in the provpipeline."""
     kommiauftraege_new, kommiauftraege_processing, pipelincutoff = [], [], False
+    kommiauftraege = [] # falls es nix zu kommisionieren gibt
     for kommiauftragnr in myplfrontend.kernelapi.get_kommiauftrag_list():
         kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
         if kommiauftrag['status'] == 'processing':
@@ -410,45 +413,33 @@ def kommiauftrag_nullen(request, kommiauftragnr):
         request.user.message_set.objects.create('%s erfolgreich genullt' % kommiauftragnr)
         return HttpResponseRedirect('../')
     else:
-        return HttpResponse("Fehler beim Nullen %r" % str(e), mimetype='text/plain', status=500)
+        return HttpResponse("Fehler beim Nullen von %r" % kommiauftragnr, mimetype='text/plain', status=500)
     
 
 @require_login
 def kommiauftrag_show(request, kommiauftragnr):
-    """Render a page with further information for a single Kommiauftrag"""
-    
+    """Render a page with further information for a single Kommiauftrag."""
     kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
-    # TODO: move to HTTP, md
-    
     # Prüfen, ob genug Ware für den Artikel verfügbar ist.
     orderlines = []
     if 'orderlines' in kommiauftrag and not kommiauftrag.get('archived'):
         for orderline in kommiauftrag['orderlines']:
-            # This needs a new API
-            #orderline['picksuggestion'] = kerneladapter.find_provisioning_candidates(orderline['menge'],
-            #                                                                         orderline['artnr'])
-            orderline['picksuggestion'] = None
-            
-            orderline['fehler'] = ''
-            if orderline['picksuggestion'] and orderline['picksuggestion'][0] != 'error':
-                orderline['available'] = True
-            else:
-                orderline['available'] = False
-                if orderline['picksuggestion'] and orderline['picksuggestion'][1] == 'not_enough':
-                    orderline['fehler'] = 'Nicht genug Ware am Lager'
+            orderline['picksuggestion'] = myplfrontend.kernelapi.find_provisioning_candidates(
+                                                             orderline['menge'], orderline['artnr'])
+            available = bool(orderline['picksuggestion'])
+            orderline['available'] = available
+            if not available:
+                orderline['fehler'] = u'Kann zur Zeit nicht efüllt werden'
             orderlines.append(orderline)
-    
     kommischeine = []
     for kommischein_id in kommiauftrag.get('provisioninglists', []):
         kommischein = myplfrontend.kernelapi.get_kommischein(kommischein_id)
         provisionings = []
         for provisioning_id in kommischein.get('provisioning_ids', []):
             if kommischein.get('type') == 'picklist':
-                provisioning = {}
-                try:
-                    provisioning = myplfrontend.kernelapi.get_pick(provisioning_id)
-                except RuntimeError:
-                    pass
+                provisioning = myplfrontend.kernelapi.get_pick(provisioning_id)
+                if not provisioning:
+                    provisioning = {}
                 provisioning.update({'id': provisioning_id})
                 provisionings.append(provisioning)
         kommischein['provisionings'] = provisionings
@@ -479,3 +470,6 @@ def kommiauftrag_show(request, kommiauftragnr):
                                'auditlines': audit, 'priority_change_allowed': priority_change_allowed,
                                'can_zeroise_provisioning': can_zeroise_provisioning},
                               context_instance=RequestContext(request))
+
+def request_tracker(request):
+    pass

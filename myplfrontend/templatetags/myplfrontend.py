@@ -12,7 +12,7 @@ register = template.Library()
 
 def link_location(locname):
     """Returns a XHTML snippet which links to a location name"""
-    return mark_safe(('<a href="/mypl/viewer/plaetze/%s/">' +
+    return mark_safe(('<a href="/myplfrontend/plaetze/%s/">' +
              '%s</a>') % (escape(locname), escape(locname)))
 register.filter(link_location)
 
@@ -25,21 +25,21 @@ def link_product(name):
         artnr = artnr.strip('(').strip(')')
     else:
         artnr = name
-    return mark_safe(('<a href="/mypl/viewer/produkte/%s/">' +
+    return mark_safe(('<a href="/myplfrontend/produkte/%s/">' +
              '%s</a>') % (escape(artnr), escape(name)))
 register.filter(link_product)
 
 
 def link_mui(name):
     """Returns a XHTML snippet which links to an mui/NVE"""
-    return mark_safe(('<a href="/mypl/viewer/unit/%s/">' +
+    return mark_safe(('<a href="/myplfrontend/unit/%s/">' +
              '%s</a>') % (escape(name), escape(name)))
 register.filter(link_mui)
 
 
 def link_kommiauftrag(name):
     """Returns a XHTML snippet which links to a kommiauftrag."""
-    return mark_safe(('<a href="/mypl/viewer/kommiauftrag/%s/">' +
+    return mark_safe(('<a href="/myplfrontend/kommiauftrag/%s/">' +
                  '%s</a>') % (escape(name), escape(name)))
 register.filter(link_kommiauftrag)
 
@@ -47,7 +47,7 @@ register.filter(link_kommiauftrag)
 def link_kommischein(name):
     """Returns a XHTML snippet which links to a kommischein."""
     return name
-    #return mark_safe(('<a href="/mypl/viewer/kommischein/%s/">' +
+    #return mark_safe(('<a href="/myplfrontend/kommischein/%s/">' +
     #             '%s</a>') % (escape(name), escape(name)))
 register.filter(link_kommischein)
 
@@ -58,9 +58,9 @@ def link_number(name):
     Is smart enough to destinguish between movements/picks/etc."""
     
     if name.startswith('m'):
-        base = '/mypl/viewer/movements/'
+        base = '/myplfrontend/movements/'
     elif name.startswith('P'):
-        base = '/mypl/viewer/picks/'
+        base = '/myplfrontend/picks/'
     else:
         return name
     # add p00058594 - picklistlist
