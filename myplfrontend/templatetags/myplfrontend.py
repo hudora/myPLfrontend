@@ -4,10 +4,11 @@
 """Template tags for use in myplfrontend."""
 
 from django import template
-from django.utils.html import escape 
-from django.utils.safestring import mark_safe 
+from django.utils.html import escape
+from django.utils.safestring import mark_safe
 
 register = template.Library()
+
 
 def link_location(locname):
     """Returns a XHTML snippet which links to a location name"""
@@ -35,11 +36,13 @@ def link_mui(name):
              '%s</a>') % (escape(name), escape(name)))
 register.filter(link_mui)
 
+
 def link_kommiauftrag(name):
     """Returns a XHTML snippet which links to a kommiauftrag."""
     return mark_safe(('<a href="/mypl/viewer/kommiauftrag/%s/">' +
                  '%s</a>') % (escape(name), escape(name)))
 register.filter(link_kommiauftrag)
+
 
 def link_kommischein(name):
     """Returns a XHTML snippet which links to a kommischein."""
@@ -47,6 +50,7 @@ def link_kommischein(name):
     #return mark_safe(('<a href="/mypl/viewer/kommischein/%s/">' +
     #             '%s</a>') % (escape(name), escape(name)))
 register.filter(link_kommischein)
+
 
 def link_number(name):
     """Returns a XHTML snippet which links to an myPL id number.
@@ -63,4 +67,3 @@ def link_number(name):
     # r00054753 - retrievallist
     return mark_safe(('<a href="%s%s/">%s</a>') % (escape(base), escape(name), escape(name)))
 register.filter(link_number)
-

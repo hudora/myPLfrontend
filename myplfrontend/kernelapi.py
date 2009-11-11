@@ -306,6 +306,7 @@ def get_picks_list():
 def get_pick(pickid):
     """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Pick.
     
+    from kernelE:
     >>> myplfrontend.kernelapi.get_pick(pickid)
     {'archived': False,
      'artnr': '57104',
@@ -319,6 +320,28 @@ def get_pick(pickid):
      'menge': 10,
      'oid': 'P08548169',
      'status': 'open'}
+    
+    from archive:
+    >>> myplfrontend.kernelapi.get_pick(pickid)
+    {'_id': 'P00149533',
+     '_rev': '3-9c54fef0ab271bab56beecb87d37092b',
+     'archived': True,
+     'archived_at': datetime.datetime(2007, 12, 11, 0, 53, 58),
+     'artnr': '14613/01',
+     'created_at': datetime.datetime(2007, 12, 7, 7, 5, 25),
+     'from_unit': '340059981000022823',
+     'kernel_provisioninglist_id': '',
+     'menge': 2,
+     'mui': '340059981000022823',
+     'oid': 'P00149533',
+     'product': '14613/01',
+     'prop': {'d': True, 'e': True, 'f': True, 'i': True, 'n': True, 'u': True},
+     'provpipeline_id': '',
+     'quantity': 2,
+     'status': 'archived',
+     'transaction': 'commit_pick',
+     'type': 'pick'}
+    
 
     """
     pick = _get_data_from_kernel("pick/%s" % pickid)
@@ -378,6 +401,7 @@ def get_kommiauftrag_list():
 def get_kommiauftrag(kommiauftragnr):
     """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Kommiauftrag.
 
+    from kernelE:
     >>> myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
     {'anbruch': False,
      'art': 'A',
@@ -412,6 +436,32 @@ def get_kommiauftrag(kommiauftragnr):
      'versandtermin': '2009-11-09',
      'versandtermin_ab': '2009-11-09',
      'volumen': 10.331}
+
+    from archive
+    >>> myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
+    {'_id': '930613',
+     '_rev': '3-ec028554a5b088a6962df5527fb8a618',
+     'archived': True,
+     'archived_at': datetime.datetime(2009, 1, 18, 21, 15, 49),
+     'archived_by': 'cleanup',
+     'attributes': {'auftragsnummer': '648204',
+                    'commited_at': '20090118T00201549.741895',
+                    'kernel_customer': '50402',
+                    'kernel_enqueued_at': '20071206T00205116.000000',
+                    'liefertermin': '2007-11-27',
+                    'volume': 0.0,
+                    'weigth': 0},
+     'id': '930613',
+     'oid': '930613',
+     'orderlines': [[10, '14613/01', {'auftragsposition': 1, 'gewicht': 0}],
+                    [4, '14695', {'auftragsposition': 2, 'gewicht': 0}],
+                    [10, '14801', {'auftragsposition': 3, 'gewicht': 0}]],
+     'orderlines_count': 3,
+     'priority': 5,
+     'provisioninglists': ['p00149579', 'r00149567'],
+     'status': 'provisioned',
+     'tries': 0,
+     'type': 'provpipeline'}
 
     """
     # kommiauftrag aus dem Kernel holen
@@ -475,8 +525,56 @@ def get_kommischein_list():
 def get_kommischein(kommischeinnr):
     """Liefert Details zu einem Kommischein.
 
+    Die Informationen werden entweder aus dem Kernel, oder aus dem Archiv im CouchDB genommen.
+
+    from archive:
+    >>> myplfrontend.kernelapi.get_kommischein('p00149579')
+    {'_id': 'p00149579-R1232271323.735974p00149579',
+     '_rev': '2-7e378c9a311abc784e356c42eee71da7',
+     'archived_at': datetime.datetime(2009, 1, 18, 10, 35, 23),
+     'archived_by': 'cleanup',
+     'attributes': {'auftragsnummer': '648204',
+                    'commited_at': '20090118T00093523.735268',
+                    'kernel_customer': '50402',
+                    'kernel_enqueued_at': '20071206T00205116.000000',
+                    'liefertermin': '2007-11-27',
+                    'parts': 2},
+     'created_at': datetime.datetime(2008, 1, 1, 1, 0),
+     'destination': 'AUSLAG',
+     'id': 'p00149579',
+     'oid': 'p00149579',
+     'provisionings': ['P00149533', 'P00149546', 'P00149551'],
+     'provpipeline_id': '930613',
+     'status': 'provisioned',
+     'type': 'picklist'}
+
+    from kernelE:
     >>> myplfrontend.kernelapi.get_kommischein(kommischeinnr)
-    {'id': 'p08548182'}
+    {'anbruch': True,
+     'created_at': '2009-11-10T09:26:09.000000Z',
+     'destination': 'AUSLAG',
+     'export_packages': 2.5,
+     'id': 'p08556432',
+     'paletten': 0.2583333333333333,
+     'parts': 1,
+     'provisioning_ids': ['P08556318',
+                          'P08556325',
+                          'P08556339',
+                          'P08556341',
+                          'P08556356',
+                          'P08556360',
+                          'P08556373',
+                          'P08556387',
+                          'P08556394',
+                          'P08556409',
+                          'P08556413',
+                          'P08556421'],
+     'provpipeline_id': '3099579',
+     'status': 'new',
+     'type': 'picklist',
+     'volume': 262.19200000000001,
+     'weight': 24020}
+    
 
     """
     kommischein = _get_data_from_kernel('kommischein/%s' % kommischeinnr)
@@ -488,7 +586,7 @@ def get_kommischein(kommischeinnr):
         # TODO: time out and retry with stale=ok
         # see http://wiki.apache.org/couchdb/HTTP_view_API
         for row in db.view('selection/kommischeine', key=kommischeinnr, limit=1, include_docs=True):
-            kommischein = fix_timestamps(row.doc)
+            kommischein = dict(fix_timestamps(row.doc))
     kommischein.update({'id': kommischeinnr})
     return kommischein
     

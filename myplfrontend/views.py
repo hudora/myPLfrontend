@@ -9,7 +9,6 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 from huTools.robusttypecasts import float_or_0
 from hudjango.auth.decorators import require_login
-from mypl.kernel import Kerneladapter
 from myplfrontend.forms import palletheightForm
 
 import couchdb
@@ -420,7 +419,6 @@ def kommiauftrag_show(request, kommiauftragnr):
     
     kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
     # TODO: move to HTTP, md
-    kerneladapter = Kerneladapter()
     
     # Prüfen, ob genug Ware für den Artikel verfügbar ist.
     orderlines = []

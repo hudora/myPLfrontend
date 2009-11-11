@@ -10,6 +10,119 @@ Copyright (c) 2008 __MyCompanyName__. All rights reserved.
 import unittest
 
 
+def format_locname(locname):
+    """Formats a location name nicely.
+
+    >>> format_locname("010203")
+    '01-02-03'
+    >>> format_locname("AUSLAG")
+    'AUSLAG'
+    >>> format_locname("K20")
+    'K20'
+    """
+
+    if len(locname) == 6 and str(locname).isdigit():
+        return "%s-%s-%s" % (locname[:2], locname[2:4], locname[4:])
+    return locname
+
+
+def compare_locations(s_location, o_location):
+    """Compares two Locations regarding the following rules:
+    1st - Compare the aisles (two rows make up on aisle)
+    2nd - Compare the rows
+    
+    >>> compare_locations("020501", "030201")
+    1
+    >>> compare_locations("020501", "030501")
+    0
+    >>> compare_locations("020301", "030501")
+    -1
+    >>> compare_locations("K10", "030201")
+    -1
+    >>> compare_locations("030201", "K11")
+    1
+    >>> compare_locations("K11", "K11")
+    0
+    """
+
+    if not s_location.isdigit() and not o_location.isdigit():
+        return 0
+
+    if not s_location.isdigit():
+        return -1
+                               
+    if not o_location.isdigit():
+        return 1
+                                                
+    s_row = s_location[:2]
+    s_aisle = 1 + (int(s_row) / 2)
+    
+    o_row = o_location[:2]
+    o_aisle = 1 + (int(o_row) / 2)
+    
+    if int(s_aisle) > int(o_aisle):
+        return 1
+    elif int(s_aisle) < int(o_aisle):
+        return -1
+    
+    s_column = s_location[2:4]
+    o_column = o_location[2:4]
+    
+    if int(s_column) > int(o_column):
+        return 1
+    elif int(s_column) < int(o_column):
+        return -1
+    
+    return 0
+
+
+def sort_plaetze(items, key='location_from'):
+    """Sortiert eine Menge von Lagerplätzen nach folgendem Kriterium:
+    Reihen werden zu Gängen zusammengefasst, die Plätze der zu besuchenden Gänge werden abwechselnd
+    auf- und absteigend sortiert. Siehe http://blogs.23.nu/disLEXiaDE/stories/15539/
+    
+    Paramter ist ein dictionary, dessen Schlüssel Lagerplätze nach dem Schema Reihe-Riegel-Ebene sind.
+    Die Values sind beliebige Objekte.
+
+    Als key wird der Methodenname bzw. der dictitionary Schlüssel vorgegeben, der den Platz repräsentiert.
+    
+    >>> sort_plaetze([{'location_from': '01-10-01'}, {'location_from': '02-12-01'}, {'location_from': '03-10-01'}, {'location_from': '03-15-01'}, {'location_from': 'EINLAG'}])
+    [{'location_from': 'EINLAG'}, {'location_from': '01-10-01'}, {'location_from': '03-15-01'}, {'location_from': '02-12-01'}, {'location_from': '03-10-01'}]
+    """
+    
+    tmp = dict()
+    for item in items:
+        location = getattr(item, key, None)
+        if not location:
+            location = item[key]
+        location = location.replace("-", "")
+        if not location.isdigit():
+            location = "000000"
+
+        row = location[:2]
+        aisle = 1 + (int(row) / 2)
+
+        tmp.setdefault(aisle, {}).setdefault(location, item)
+        # if tmp.has_key(aisle):
+        #     tmp[aisle][location] = item
+        # else:
+        #     tmp[aisle] = {location: item}
+
+    all_items = []
+    reverse = False
+
+    for aisle in sorted(tmp.keys()):
+        for key in sorted(tmp[aisle].keys(), key=lambda x: x[2:], reverse=reverse):
+            all_items.append(tmp[aisle][key])
+
+        # optimierung oder komplexisierng:
+        # wenn reihe von letztem platz in gang n < (bzw. >) reihe von erstem platz in gang n+1:
+        # kehre reihenfolge nicht um
+        reverse = not reverse
+
+    return all_items
+
+
 def get_pickinfo_from_pipeline_data(pipeline_data):
     """Get Pickinfo from Pipeline data"""
 
