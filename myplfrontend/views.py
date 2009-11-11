@@ -11,10 +11,8 @@ from huTools.robusttypecasts import float_or_0
 from hudjango.auth.decorators import require_login
 from myplfrontend.forms import palletheightForm
 
-import couchdb
 import cs.masterdata.article
 import cs.zwitscher
-import datetime
 import django.views.decorators.http
 import husoftm.bestaende
 import itertools
@@ -487,5 +485,8 @@ def kommiauftrag_show(request, kommiauftragnr):
                                'can_zeroise_provisioning': can_zeroise_provisioning},
                               context_instance=RequestContext(request))
 
-def request_tracker(request):
-    pass
+
+def requesttracker(_):
+    """Display a table containing requesttracker data from kernelE."""
+    tracking_infos = myplfrontend.kernelapi.requesttracker()
+    return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos))
