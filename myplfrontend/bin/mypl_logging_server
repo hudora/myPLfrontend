@@ -14,20 +14,20 @@ help_message = '''Read logging messages from queuing system and feed them to Cou
 
 
 import couchdb.client
-import huTools.luids
-import re
 import simplejson as json
-import smtplib
-import socket
-import time
 
 from amqplib import client_0_8 as amqp
 from huTools.calendar.formats import rfc3339_date
 from optparse import OptionParser
+from signal import signal, SIGTERM, SIGINT
+
 
 COUCHSERVER = "http://couchdb1.local.hudora.biz:5984" # where CouchDB is running
 COUCHDB_NAME = "mypl_log" # CouchDB database to use
 
+# For exeting the proessing loop
+process_messages = True
+consumer_tag = channel = None
 
 def _setup_couchdb():
     """Get a connection handler to the CouchDB Database, creating it when needed."""
@@ -48,13 +48,6 @@ def parse_commandline():
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
-    parser.add_option('-l', '--loop', action='store_true',
-                      help='Run continuesly checking for new messages every --sleep seconds')
-    parser.add_option('-s', '--sleep', action='store', type='float', default=31,
-                      help='Sleep intervals between processing attempts [%default]')
-    parser.add_option('-p', '--messagepause', action='store', type='float', default=0.2,
-                      help='Sleep intervals between messages [%default]')
-                      
     options, args = parser.parse_args()
     
     if len(args) > 0:
@@ -63,7 +56,7 @@ def parse_commandline():
     
 
 def init_broker():
-    # init Message Broker Connection
+    """Init Message Broker Connection and set up Excahnge/Queue"""
     conn = amqp.Connection(host="rabbitmq.local.hudora.biz:5672 ", userid="mypl",
                            password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
     chan = conn.channel()
@@ -74,43 +67,56 @@ def init_broker():
     return conn, chan
     
 
-def process_messages(chan, options):
+def handle_message(message):
+    """ Callback function used by channel.basic_consume."""
+    dispatch = json.loads(message.body)
+    if options.debug:
+        print dispatch
     
     db = _setup_couchdb()
-    
-    while True:
-        msg = chan.basic_get("log#mypl")
-        if not msg:
-            break
-       
-        dispatch = json.loads(msg.body)
-        if options.debug:
-            print dispatch
-
-        guid = dispatch['guid']
-        try:
-             doc = db[guid]
-        except couchdb.client.ResourceNotFound:
-             doc = {'created_at': rfc3339_date()}
-        doc.update(dispatch)
-        db[guid] = doc
-        chan.basic_ack(msg.delivery_tag)
-        time.sleep(options.messagepause)
+    guid = dispatch['guid']
+    try:
+        doc = db[guid]
+    except couchdb.client.ResourceNotFound:
+        doc = {'created_at': rfc3339_date()}
+    doc.update(dispatch)
+    db[guid] = doc
+    channel.basic_ack(message.delivery_tag)
     
 
-def main(options, args):
-    conn, chan = init_broker()
+# This might go somewhere like a signal handler
+def cancel_processing():
+    """ Stop consuming messages from RabbitMQ """
+    global process_messages
     
-    if not options.loop:
-        process_messages(chan, options)
-    else:
-        while True:
-            time.sleep(options.sleep)
-            process_messages(chan, options)
+    # Do this so we exit our main loop
+    print "Exiting"
+    process_messages = False
+    # Tell the channel you dont want to consume anymore
+    channel.basic_cancel(consumer_tag)
     
-    chan.close()
-    conn.close()
+
+def main(options):
+    """Setum message consuming."""
+    global channel, consumer_tag
+    
+    connection, channel = init_broker()
+    consumer_tag = channel.basic_consume(queue = 'log#mypl', callback=handle_message)
+    
+    signal(SIGTERM, lambda signum, stack_frame: cancel_processing())
+    signal(SIGINT, lambda signum, stack_frame: cancel_processing())
+    
+    if options.debug:
+        print "waiting for messages ..."
+    
+    # Loop while process_messages is True
+    while process_messages:
+        # Wait for a message
+        channel.wait()
+    
+    channel.close()
+    connection.close()
     
 
 options, args = parse_commandline()
-main(options, args)
+main(options)
