@@ -25,7 +25,7 @@ from signal import signal, SIGTERM, SIGINT
 COUCHSERVER = "http://couchdb1.local.hudora.biz:5984" # where CouchDB is running
 COUCHDB_NAME = "mypl_log" # CouchDB database to use
 
-# For exeting the proessing loop
+# For exiting the proessing loop
 process_messages = True
 consumer_tag = channel = None
 

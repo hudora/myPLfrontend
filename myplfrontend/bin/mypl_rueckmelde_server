@@ -25,6 +25,10 @@ import Pyro.util
 from amqplib import client_0_8 as amqp
 from optparse import OptionParser
 
+# For exiting the proessing loop
+process_messages = True
+consumer_tag = channel = None
+
 
 def parse_commandline():
     """Parse the commandline and return information."""
@@ -54,7 +58,7 @@ def parse_commandline():
     
 
 def init_broker():
-    # init Message Broker Connection
+    "Init Message Broker Connection"
     conn = amqp.Connection(host="rabbitmq.local.hudora.biz:5672", userid="mypl",
                            password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
     chan = conn.channel()
@@ -69,8 +73,7 @@ def init_broker():
     
 
 def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
-    
-    print auftragsnr, kommiauftragsnr, positionen
+    "Rückmeldung zu SoftM."
     server = husoftm.connection.PyRoMoftSconnection()
     lock_key = datetime.datetime.now().strftime("%m%d%H%M%S")
     rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
@@ -100,19 +103,21 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
         try:
             server.insert_raw(sqlstr)
         except Exception, msg:
-            zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))), username='debugger') 
+            zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))),
+                      username='debugger') 
             raise
     try:
         # set all records to be unlocked
         server.update_raw(("UPDATE ISR00 SET IRDFSL='' WHERE IRKBNR='%s' AND IRDFSL='%s'" % (
                                int(kommiauftragsnr), lock_key)))
     except Exception, msg:
-        cs.zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))), username='debugger') 
+        cs.zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))),
+                     username='debugger') 
         raise
     # Datensatz an SoftM zurückgemeldet
 
 
-def decodiere_message(msg, options):
+def decodiere_message(msg):
     hugogramm = json.loads(msg.body)
     if options.debug:
         print hugogramm
@@ -128,7 +133,8 @@ def decodiere_message(msg, options):
     return kommibeleg, hugogramm
     
 
-def log_message(typ, kommibeleg, hugogramm, options):
+def log_message(typ, kommibeleg, hugogramm):
+    """Information über den vorgang protokollieren."""
     fd = open(options.output, 'w')
     fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                  ','.join(["0 mal %s|%s" % (x['artnr'], x['posnr']) for x in hugogramm['positionen']])))
@@ -136,61 +142,60 @@ def log_message(typ, kommibeleg, hugogramm, options):
     
 
 def benachrichtigen(kommibeleg, hugogramm):
+    """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
     zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                                         hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
     
 
-def process_messages_spezial(chan, options):
-    while True:
-        msg = chan.basic_get("erp.cs-wms.rueckmeldung#spezial", no_ack=False)
-        if not msg:
-            break
-        
-        # TODO: eigentlich müsste die art der NAchricht noch in der Nachricht codiert sein
-        kommibeleg, hugogramm = decodiere_message(msg, options)
-        if hugogramm['kommiauftragnr'] not in options.erase:
-            log_message('nullen', kommibeleg, hugogramm, options)
-            zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
-            chan.basic_ack(msg.delivery_tag)
-            benachrichtigen(kommibeleg, hugogramm)
-        time.sleep(options.messagepause)
+def handle_message(message):
+    """ Callback function used by channel.basic_consume."""
+    
+    # TODO: eigentlich müsste die art der Nachricht noch in der Nachricht codiert sein
+    kommibeleg, hugogramm = decodiere_message(message)
+    log_message('nullen', kommibeleg, hugogramm)
+    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
+    channel.basic_ack(message.delivery_tag)
+    benachrichtigen(kommibeleg, hugogramm)
     
 
-def process_messages_normal(chan, options):
-    while True:
-        msg = chan.basic_get("erp.cs-wms.rueckmeldung#normal", no_ack=False)
-        if not msg:
-            break
-        
-        kommibeleg, hugogramm = decodiere_message(msg, options)
-        if hugogramm['kommiauftragnr'] not in options.erase:
-            log_message('rueckmelden', kommibeleg, hugogramm, options)
-            # zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
-            chan.basic_ack(msg.delivery_tag)
-            benachrichtigen(kommibeleg, hugogramm)
-        time.sleep(options.messagepause)
+# This might go somewhere like a signal handler
+def cancel_processing():
+    """ Stop consuming messages from RabbitMQ """
+    global process_messages
+    
+    # Do this so we exit our main loop
+    print "Exiting"
+    process_messages = False
+    # Tell the channel you dont want to consume anymore
+    channel.basic_cancel(consumer_tag)
     
 
+def main(options):
+    """Setum message consuming."""
+    global channel, consumer_tag
+    
+    connection, channel = init_broker()
+    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#spezial', callback=handle_message)
+    
+    signal(SIGTERM, lambda signum, stack_frame: cancel_processing())
+    signal(SIGINT, lambda signum, stack_frame: cancel_processing())
+    
+    if options.debug:
+        print "waiting for messages ..."
+    
+    # Loop while process_messages is True
+    while process_messages:
+        # Wait for a message
+        channel.wait()
+    
+    channel.close()
+    connection.close()
+    
 
-def main(options, args):
-    conn, chan = init_broker()
-    
-    if not options.erase:
-        options.erase = []
-    if not options.loop:
-        process_messages_spezial(chan, options)
-        #process_messages_normal(chan, options)
-    else:
-        print "starting"
-        while True:
-            time.sleep(options.sleep)
-            process_messages_spezial(chan, options)
-            #process_messages_normal(chan, options)
-    
-    chan.close()
-    conn.close()
-    
+options, args = parse_commandline()
+main(options)
+
 
 if __name__ == '__main__':
     main(*parse_commandline())
