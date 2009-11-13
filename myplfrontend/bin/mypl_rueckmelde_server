@@ -1,29 +1,25 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""mypl_rueckmelde_server - read messages from RabbitMQ and feed them to zwitschr
+"""mypl_rueckmelde_server - read messages from RabbitMQ and feed them to SoftM
 """
 
 # mypl/bin/mypl_rueckmelde_server.py
 # Created by Maximillian Dornseif on 2009-07-13 for HUDORA.
 # Copyright (c) 2009 HUDORA. All rights reserved.
 
-__revision__ = '$Revision $'
+__revision__ = '$Revision$'
 
-import cs.caching
+from amqplib import client_0_8 as amqp
 from cs.zwitscher import zwitscher
+from optparse import OptionParser
+from signal import signal, SIGTERM, SIGINT
+import Pyro.util
+import cs.caching
 import datetime
-import hashlib
 import husoftm.connection
 import husoftm.kunden
 import husoftm.lieferscheine
-import re
 import simplejson as json
-import time
-import unittest
-import urllib
-import Pyro.util
-from amqplib import client_0_8 as amqp
-from optparse import OptionParser
 
 # For exiting the proessing loop
 process_messages = True
@@ -118,6 +114,7 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
 
 
 def decodiere_message(msg):
+    """Dekodiert die JSON Message und reichert sie mit den Nötigen weiterführenden Daten an."""
     hugogramm = json.loads(msg.body)
     if options.debug:
         print hugogramm
