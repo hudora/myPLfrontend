@@ -73,6 +73,7 @@ def handle_message(message):
     if options.debug:
         print dispatch
     
+    print dispatch.get('level', u'?').encode('utf-8'), dispatch['message'].encode('utf-8')
     db = _setup_couchdb()
     guid = dispatch['guid']
     try:
