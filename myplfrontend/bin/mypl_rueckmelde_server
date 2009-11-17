@@ -36,12 +36,6 @@ def parse_commandline():
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
-    parser.add_option('-e', '--erase', action='append',
-                      help='Erase this kommiauftragnr without forwarding [%default]')
-    parser.add_option('-l', '--loop', action='store_true',
-                      help='Run continuesly checking for new messages every --sleep seconds')
-    parser.add_option('-s', '--sleep', action='store', type='float', default=2,
-                      help='Sleep intervals between processing attempts [%default]')
     parser.add_option('-o', '--output', default='rueckmeldung.log',
                       help='output all Kommischeint to logfile [%default]')
     parser.add_option('-p', '--messagepause', action='store', type='float', default=0.01,
@@ -75,8 +69,11 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
     rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
                         % int(kommiauftragsnr))
     if rows:
-        raise RuntimeError("KB already exists %r" % kommiauftragsnr)
-        
+        cs.zwitscher.zwitscher("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!" % kommiauftragsnr, 'mypl') 
+        fd = open(options.output, 'a')
+        fd.write("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!\n" % kommiauftragsnr)
+        fd.close()
+        return
     for pos in positionen:
         # auftrags_position = 
         pos_sql = dict(IRFNR='01',
@@ -91,25 +88,15 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
         # elif commit_type == 'cancel':
         #     pos_sql['IRMENG'] = 0
         #     pos_sql['IRKZST'] = 1
-        # else:
-        #     menge = pos['menge']
-        #     pos_sql['IRMENG'] = int(pos.menge)
+        else:
+             menge = pos['menge']
+             pos_sql['IRMENG'] = int(pos['menge'])
         sqlstr = 'INSERT INTO ISR00 (%s) VALUES (%s)' % (','.join(pos_sql.keys()),
                                                     ','.join([repr(x) for x in pos_sql.values()]))
-        try:
-            server.insert_raw(sqlstr)
-        except Exception, msg:
-            zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))),
-                      username='debugger') 
-            raise
-    try:
-        # set all records to be unlocked
-        server.update_raw(("UPDATE ISR00 SET IRDFSL='' WHERE IRKBNR='%s' AND IRDFSL='%s'" % (
-                               int(kommiauftragsnr), lock_key)))
-    except Exception, msg:
-        cs.zwitscher('PyRO remote exception:' + (''.join(Pyro.util.getPyroTraceback(msg))),
-                     username='debugger') 
-        raise
+        server.insert_raw(sqlstr)
+    # set all records to be unlocked
+    server.update_raw(("UPDATE ISR00 SET IRDFSL='' WHERE IRKBNR='%s' AND IRDFSL='%s'" % (
+                           int(kommiauftragsnr), lock_key)))
     # Datensatz an SoftM zurückgemeldet
 
 
@@ -132,9 +119,9 @@ def decodiere_message(msg):
 
 def log_message(typ, kommibeleg, hugogramm):
     """Information über den vorgang protokollieren."""
-    fd = open(options.output, 'w')
+    fd = open(options.output, 'a')
     fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
-                 ','.join(["0 mal %s|%s" % (x['artnr'], x['posnr']) for x in hugogramm['positionen']])))
+                 ','.join(["%d mal %s|%s" % (x['menge'], x['artnr'], x['posnr']) for x in hugogramm['positionen']])))
     fd.close()
     
 
@@ -145,16 +132,23 @@ def benachrichtigen(kommibeleg, hugogramm):
                                         hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
     
 
-def handle_message(message):
-    """ Callback function used by channel.basic_consume."""
+def handle_message_spezial(message):
+    """Callback function used by channel.basic_consume for 'nullen'."""
     
-    # TODO: eigentlich müsste die art der Nachricht noch in der Nachricht codiert sein
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('nullen', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
     channel.basic_ack(message.delivery_tag)
     benachrichtigen(kommibeleg, hugogramm)
     
+def handle_message_normal(message):
+    """Callback function used by channel.basic_consume for 'zurueckmelden'."""
+    
+    kommibeleg, hugogramm = decodiere_message(message)
+    log_message('zurueckmelden', kommibeleg, hugogramm)
+    # vorerst fuehren wir hier nooch cinht die eigentliche rueckmeldung durch
+    channel.basic_ack(message.delivery_tag)
+
 
 # This might go somewhere like a signal handler
 def cancel_processing():
@@ -173,7 +167,8 @@ def main(options):
     global channel, consumer_tag
     
     connection, channel = init_broker()
-    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#spezial', callback=handle_message)
+    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#spezial', callback=handle_message_spezial)
+    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#normal', callback=handle_message_normal)
     
     signal(SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal(SIGINT, lambda signum, stack_frame: cancel_processing())
