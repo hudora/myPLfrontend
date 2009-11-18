@@ -38,8 +38,6 @@ def parse_commandline():
                       help='Enables debugging mode')
     parser.add_option('-o', '--output', default='rueckmeldung.log',
                       help='output all Kommischeint to logfile [%default]')
-    parser.add_option('-p', '--messagepause', action='store', type='float', default=0.01,
-                      help='Sleep intervals between messages [%default]')
     
     options, args = parser.parse_args()
     if len(args) > 0: # we expect no non option arguments
