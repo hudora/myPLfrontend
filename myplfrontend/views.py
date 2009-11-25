@@ -396,6 +396,7 @@ def kommiauftrag_list(request):
 def kommiauftrag_set_priority(request, kommiauftragnr):
     priority = int(request.POST.get('priority').strip('p'))
     content = myplfrontend.kernelapi.set_kommiauftrag_priority(
+            kommiauftragnr,
             explanation='Prioritaet auf %d durch %s geaendert' % (priority, request.user.username),
             priority=priority)
     return HttpResponse(content, mimetype='application/json')
