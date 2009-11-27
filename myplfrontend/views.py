@@ -493,24 +493,9 @@ def requesttracker(request):
     return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos),
                               context_instance=RequestContext(request))
 
-    
-def find_softm_differences():
-    """Find articles which have different quantities in myPL as their SoftM counterparts."""
-    softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
-    kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in 
-                        (myplfrontend.kernelapi.get_article(article) for article in myplfrontend.kernelapi.get_article_list()))
-    difkernel2softm = kernelbestand.difference(softmbestand)
-    difsoftm2kernel = softmbestand.difference(kernelbestand)
-    artnrs = set(artnr for (artnr, mng) in itertools.chain(difkernel2softm, difsoftm2kernel))
-    print len(artnrs)
-    dictkernel2softm = dict(difkernel2softm)
-    dictsoftm2kernel = dict(difsoftm2kernel)
-    return [dict(artnr=artnr, softm_menge=dictsoftm2kernel.get(artnr), kernel_menge=dictkernel2softm.get(artnr))
-            for artnr in artnrs]
 
-    
 def softmdifferences(request):
     """Show the differences between SoftM and myPL stock."""
-    differences = find_softm_differences()
+    differences = myplfrontend.tools.find_softm_differences()
     return render_to_response('myplfrontend/softmdifferences.html', {'differences': differences},
                               context_instance=RequestContext(request))

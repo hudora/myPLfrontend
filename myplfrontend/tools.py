@@ -9,6 +9,20 @@ Copyright (c) 2008 __MyCompanyName__. All rights reserved.
 
 import unittest
 
+    
+def find_softm_differences():
+    """Find articles which have different quantities in myPL as their SoftM counterparts."""
+    softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
+    kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in 
+                        (myplfrontend.kernelapi.get_article(article) for article in myplfrontend.kernelapi.get_article_list()))
+    difkernel2softm = kernelbestand.difference(softmbestand)
+    difsoftm2kernel = softmbestand.difference(kernelbestand)
+    artnrs = set(artnr for (artnr, mng) in itertools.chain(difkernel2softm, difsoftm2kernel))
+    dictkernel2softm = dict(difkernel2softm)
+    dictsoftm2kernel = dict(difsoftm2kernel)
+    return [dict(artnr=artnr, softm_menge=dictsoftm2kernel.get(artnr), kernel_menge=dictkernel2softm.get(artnr))
+            for artnr in artnrs]
+
 
 def format_locname(locname):
     """Formats a location name nicely.
