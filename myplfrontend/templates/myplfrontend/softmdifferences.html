@@ -1,0 +1,27 @@
+{% extends "myplfrontend/base.html" %}
+{% load myplfrontend hudoratools %}
+{% block title %}Abweichungen zum SoftM Lagerbestand{% endblock %}
+{% block headline %}Abweichungen zum SoftM Lagerbestand{% endblock %}
+{% block content %}
+<div id="content_main">
+    <table>
+        <tr><th>Artikel</th><th>Kernel-Menge</th><th>SoftM-Menge</th></tr>
+        {% for entry in differences %}
+        <tr class="{% cycle odd,even %}">
+            <td>
+                {{ entry.artnr }}
+            </td>
+            <td>
+                {{ entry.kernel_menge }}
+            </td>
+            <td>
+                {{ entry.softm_menge }}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}
+</body>
+</html>
+
