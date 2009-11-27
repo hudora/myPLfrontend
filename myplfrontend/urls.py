@@ -25,4 +25,5 @@ urlpatterns = patterns('myplfrontend.views',
     (r'^komissionierung/infopanel/$', 'info_panel'),
     (r'^artikel_heute/$', 'artikel_heute'),
     (r'^requesttracker/$', 'requesttracker'),
+    (r'^softmdifferences/$', 'softmdifferences'),
 )
