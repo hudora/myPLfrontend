@@ -8,7 +8,9 @@ Copyright (c) 2008 __MyCompanyName__. All rights reserved.
 """
 
 import unittest
-
+import husoftm.bestaende
+import myplfrontend.kernelapi
+import itertools
     
 def find_softm_differences():
     """Find articles which have different quantities in myPL as their SoftM counterparts."""
