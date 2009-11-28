@@ -34,7 +34,7 @@
             <li>Movement: {% for movement in unit.movements %}{{ movement|link_number }} {% endfor %}</li>
         {% endif %}
     </ul> 
-</div>
+    </div>
 
 <table>
 <tr>
@@ -52,6 +52,7 @@
 {% endfor %}
 
 </table>
+{% if not unit.archived %}
 <div id="sonderfunktionen_button"><a href="#sonderfunktionen">Sonderfunktionen</a></div>
 
 <div id="sonderfunktionen">
@@ -62,7 +63,6 @@
 </form>
 </div>
 
-
 <script>
 $(document).ready(function() {
   $('#sonderfunktionen').hide();
@@ -71,7 +71,7 @@ $('div#sonderfunktionen_button a').click(function() {
       $('#sonderfunktionen').show();
       $('#sonderfunktionen_button').hide();
 });</script>
-
+{% endif %}
 
     {% endblock%}
     

@@ -345,19 +345,19 @@ def unit_show(request, mui):
     
     unit = myplfrontend.kernelapi.get_unit(mui)
     
+    form = None
     if request.method == "POST":
         form = palletheightForm(request.POST)
         if unit.get('archived'):
             #message
             pass
-
+    
         elif form.is_valid():
             myplfrontend.kernelapi.set_unit_height(mui, form.cleaned_data['height'])
-
-    else:
-        form = palletheightForm({'height': unit.get('height', 1950)})
-
-
+    
+    elif not unit.get('archived'):
+       form = palletheightForm({'height': unit.get('height', 1950)})
+    
     title = 'Unit %s' % mui
     if unit.get('archived'):
         title += ' (archiviert)'

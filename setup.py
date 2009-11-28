@@ -14,7 +14,7 @@ from setuptools import setup, find_packages
 setup(name='myPLfrontend',
       maintainer='j.otten@hudora.de',
       # maintainer_email='xXXXx@hudora.de',
-      version='1.0p2',
+      version='1.0p3',
       description='Web-Frontend to the kernelE WMS',
       long_description=__doc__,
       classifiers=['License :: OSI Approved :: BSD License',
