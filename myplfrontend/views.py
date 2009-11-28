@@ -355,7 +355,7 @@ def unit_show(request, mui):
             myplfrontend.kernelapi.set_unit_height(mui, form.cleaned_data['height'])
 
     else:
-        form = palletheightForm({'height': unit['height']})
+        form = palletheightForm({'height': unit.get('height', 1950)})
 
 
     title = 'Unit %s' % mui
