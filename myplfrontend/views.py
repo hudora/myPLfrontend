@@ -356,7 +356,7 @@ def unit_show(request, mui):
             myplfrontend.kernelapi.set_unit_height(mui, form.cleaned_data['height'])
     
     elif not unit.get('archived'):
-       form = palletheightForm({'height': unit.get('height', 1950)})
+        form = palletheightForm({'height': unit.get('height', 1950)})
     
     title = 'Unit %s' % mui
     if unit.get('archived'):

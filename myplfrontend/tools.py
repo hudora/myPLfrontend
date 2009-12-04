@@ -12,6 +12,7 @@ import husoftm.bestaende
 import myplfrontend.kernelapi
 import itertools
     
+
 def find_softm_differences():
     """Find articles which have different quantities in myPL as their SoftM counterparts."""
     softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
