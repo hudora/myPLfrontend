@@ -32,7 +32,7 @@
 <tr title="{% for orderline in p.orderlines %}{{orderline.menge}}x{{orderline.artnr}} {% endfor %}"
  class="r_{{ p.shouldprocess }} {% ifequal p.status "processing" %}processing{% endifequal %}">
 
-<td style="white-space:nowrap">{% if p.fixtermin %}<img src="{{ MEDIA_URL }}chameleon/silver/time.gif" alt="Fix"/>{% endif %}</td>
+<td style="white-space:nowrap">{% if p.fixtermin %}<img src="http://s.hdimg.net/chameleon/silver/time.gif" alt="Fix"/>{% endif %}</td>
 <td style="white-space:nowrap">{{ p.priority }}</td>
 <td style="white-space:nowrap">{{ p.versandtermin }}</td>
 <td style="white-space:nowrap"><a href="{{ p.kommiauftragsnr }}/">{{ p.kommiauftragsnr }}</a></td>
@@ -45,8 +45,8 @@
 <td style="white-space:nowrap">{{ p.kundennr }} {{ p.kundenname }}
     {% ifequal p.status "processing" %}(Kommischeine erzeugt){% endifequal %}
     </td>
-<!-- <td>{% if p.kep %}<img src="{{ MEDIA_URL }}chameleon/silver/email.gif" alt="KEP"/>{% endif %}</td> -->
-<!-- <td>{% if p.anbruch %}<img src="{{ MEDIA_URL }}chameleon/silver/unlocked.gif" alt="Anbruch"/>{% endif %}</td> -->
+<!-- <td>{% if p.kep %}<img src="http://s.hdimg.net/chameleon/silver/email.gif" alt="KEP"/>{% endif %}</td> -->
+<!-- <td>{% if p.anbruch %}<img src="http://s.hdimg.net/chameleon/silver/unlocked.gif" alt="Anbruch"/>{% endif %}</td> -->
 <td>{% comment %} <a href="./push/{{ p.id }}">Vorziehen</a>{% endcomment %} &nbsp; </td>
 </tr>
 {% endfor %}
@@ -58,7 +58,7 @@
 {% endif %}
 
 <p>
-<img src="{{ MEDIA_URL }}chameleon/silver/time.gif" alt="Fix"/> Fixtermin/Werbung
+<img src="http://s.hdimg.net/chameleon/silver/time.gif" alt="Fix"/> Fixtermin/Werbung
 </p>
 </div>
     {% endblock%}
