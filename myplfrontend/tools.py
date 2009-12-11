@@ -23,7 +23,7 @@ def find_softm_differences():
     artnrs = set(artnr for (artnr, mng) in itertools.chain(difkernel2softm, difsoftm2kernel))
     dictkernel2softm = dict(difkernel2softm)
     dictsoftm2kernel = dict(difsoftm2kernel)
-    return [dict(artnr=artnr, softm_menge=dictsoftm2kernel.get(artnr), kernel_menge=dictkernel2softm.get(artnr))
+    return [dict(artnr=artnr, softm_menge=dictsoftm2kernel.get(artnr, 0), kernel_menge=dictkernel2softm.get(artnr, 0))
             for artnr in artnrs]
 
 
