@@ -6,6 +6,7 @@
 from django import template
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
+import myplfrontend.kernelapi
 
 register = template.Library()
 
@@ -67,3 +68,9 @@ def link_number(name):
     # r00054753 - retrievallist
     return mark_safe(('<a href="%s%s/">%s</a>') % (escape(base), escape(name), escape(name)))
 register.filter(link_number)
+
+
+def fix_timestamp(value):
+    """Return a datatime object."""
+    return myplfrontend.kernelapi.fix_timestamp(value)
+register.filter(fix_timestamp)

@@ -1,29 +1,25 @@
 {% extends "myplfrontend/base.html" %}
-{% load myplfrontend %}
+{% load myplfrontendtags %}
 
 {% block content %}
 <div id="content_main">
-    <p>
-    <a href="/">Intranet</a>
-    </p>
-
     {% if tracking_infos %}
     <table>
         <tr>
             <th>Menge</th>
             <th>ArtNr</th>
-            <th>zuletzt gesehen</th> <!-- FIXME: korrekt übersetzt? -->
-            <th>Priorität</th>
+            <th>Zuletzt gesehen</th> <!-- FIXME: korrekt übersetzt? -->
         </tr>
         {% for info in tracking_infos %}
         <tr class="{% cycle odd,even %}">
             <td>{{info.menge}}</td>
             <td>{{info.artnr|link_product}}</td>
-            <td>{{info.lastseen}}</td>
-            <td>{{info.priority}}</td>
+            <td>{{info.lastseen|fix_timestamp}}</td>
         </tr>
         {% endfor %}
     </table>
+    {% else %}
+    <b>Niks!</b>
     {% endif %}
 </div>
 {% endblock %}
