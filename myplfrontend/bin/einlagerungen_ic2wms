@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""
+Uebernimmt Umlagerungsauftraege an Lager 100 aus der Soft-Schnittstelle ISK00 und 
+schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange."
+
+http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Nutzung
+der SoftM Schnittstellen.
+
+Die Warenzugangsmeldungen werden in
+https://cybernetics.hudora.biz/intern/trac/browser/projects/cs/trunk/doc/messaging_ic-wms.rst
+beschrieben.
+
+Created by Lars Ronge on 2007-12-12.
+Rewritten by Maximillian Dornseif 2008-12 and 2009-12.
+Copyright (c) 2007, 2008, 2009 HUDORA GmbH.
+"""
+
+__revision__ = "$Revision$".strip('$ ')
+
+# From http://superjared.com/entry/django-and-crontab-best-friends/
+from django.core.management import setup_environ
+import settings
+setup_environ(settings)
+
+import cs.messaging as messaging
+import cs.zwitscher
+import husoftm.lagerschnittstelle
+import husoftm.lieferscheine
+import optparse
+import produktpass.models
+import sys
+
+
+parser = optparse.OptionParser(version=True)
+parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
+                                                   mypl.models.__revision__.strip('$Revision: '))
+parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und '
+                     + 'erzeugt Warenzugangsmeldungen')
+parser.set_usage('usage: %prog [options]')
+parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+parser.add_option('--maxnum', type='int',
+                  help='Maximum number of rows to transfer before exiting [default: unlimited]')
+
+options, args = parser.parse_args()
+if args:
+    parser.error("incorrect number of arguments")
+
+
+def transfer_umlagerungen():
+    "Handeles the transfer of data SoftM/ISA00 -> messages"
+    
+    isk00 = husoftm.lagerschnittstelle.ISK00()
+    isk00.clean_stale_locks()
+    rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
+    chan = messaging.setup_queue('erp.cs-wms.warenzugang#100', durable=True)
+    
+    if options.maxnum:
+        rows = rows[:options.maxnum]
+    
+    for row in rows:
+        komminr, kommiposition, menge, satznr = row
+        
+        if options.debug:
+            print row
+        
+         _umlagerung_to_unit(satznr, komminr, kommiposition, menge, isk00, chan)
+    
+
+def _umlagerung_to_unit(satznr, komminr, kommipos, menge, isk00, chan):
+    """Converts a Umlagerungsposition to an Message."""
+    
+    lock_handle = isk00.lock(satznr)
+    
+    if options.debug:
+        print satznr, komminr, kommipos, menge
+    
+    artnr, lager = husoftm.lieferscheine.kbpos2artnr_lager(komminr, kommipos)
+    if menge < 1:
+        msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
+        cs.zwitscher.zwitscher(msg, username='mypl')
+        if options.debug:
+            print msg
+    else:
+        doc = messaging.empty_message('mypl.import_umlagerungen/%s' % __revision__,
+                                      guid="%s-%s" % (komminr, kommipos),
+                                      audit_trail='import_umlagerungen',
+                                      audit_info='Auftrag aus SoftM',
+                                      batchnr=komminr,
+                                      menge=menge,
+                                      artnr=artnr,
+                                      referenzen={})
+    
+    if options.debug:
+        print muis
+    
+    if not options.dry_run:
+        messaging.publish(doc, 'erp.cs-wms.warenzugang#%03d' % int(lager))
+        isk00.delete(lock_handle)
+    isk00.unlock(lock_handle)
+    
+
+def main():
+    """main function - does all whe work besides option parsing."""
+    transfer_umlagerungen()
+    return 0
+    
+
+if __name__ == "__main__":
+    sys.exit(main())
