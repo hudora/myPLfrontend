@@ -32,22 +32,6 @@ import produktpass.models
 import sys
 
 
-parser = optparse.OptionParser(version=True)
-parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
-                                                   mypl.models.__revision__.strip('$Revision: '))
-parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und '
-                     + 'erzeugt Warenzugangsmeldungen')
-parser.set_usage('usage: %prog [options]')
-parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
-parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
-parser.add_option('--maxnum', type='int',
-                  help='Maximum number of rows to transfer before exiting [default: unlimited]')
-
-options, args = parser.parse_args()
-if args:
-    parser.error("incorrect number of arguments")
-
-
 def transfer_umlagerungen():
     "Handeles the transfer of data SoftM/ISA00 -> messages"
     
@@ -65,13 +49,17 @@ def transfer_umlagerungen():
         if options.debug:
             print row
         
-         _umlagerung_to_unit(satznr, komminr, kommiposition, menge, isk00, chan)
+        lock_handle = isk00.lock(satznr)
+        _umlagerung_to_message(satznr, komminr, kommiposition, menge, chan)
+        
+        if not options.dry_run:
+            messaging.publish(doc, 'erp.cs-wms.warenzugang#%03d' % int(lager))
+            isk00.delete(lock_handle)
+        isk00.unlock(lock_handle)
     
 
-def _umlagerung_to_unit(satznr, komminr, kommipos, menge, isk00, chan):
+def _umlagerung_to_message(satznr, komminr, kommipos, menge, chan):
     """Converts a Umlagerungsposition to an Message."""
-    
-    lock_handle = isk00.lock(satznr)
     
     if options.debug:
         print satznr, komminr, kommipos, menge
@@ -91,21 +79,35 @@ def _umlagerung_to_unit(satznr, komminr, kommipos, menge, isk00, chan):
                                       menge=menge,
                                       artnr=artnr,
                                       referenzen={})
+        print doc
+        messaging.publish(doc, 'erp.cs-wms.warenzugang#%s' % lagernr)
     
     if options.debug:
         print muis
     
-    if not options.dry_run:
-        messaging.publish(doc, 'erp.cs-wms.warenzugang#%03d' % int(lager))
-        isk00.delete(lock_handle)
-    isk00.unlock(lock_handle)
-    
 
 def main():
-    """main function - does all whe work besides option parsing."""
+    """main function - option parsing and calling of transfer_umlagerungen()."""
+
+    global options
+    parser = optparse.OptionParser(version=True)
+    parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
+                                                       mypl.models.__revision__.strip('$Revision: '))
+    parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und '
+                         + 'erzeugt Warenzugangsmeldungen')
+    parser.set_usage('usage: %prog [options]')
+    parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+    parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+    parser.add_option('--maxnum', type='int',
+                      help='Maximum number of rows to transfer before exiting [default: unlimited]')
+
+    options, args = parser.parse_args()
+    if args:
+        parser.error("incorrect number of arguments")
+
     transfer_umlagerungen()
     return 0
-    
+
 
 if __name__ == "__main__":
     sys.exit(main())
