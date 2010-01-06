@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""Uebernimmt Umlagerungsauftraege an Lager 100 aus der Soft-Schnittstelle ISK00 und 
+"""Uebernimmt Umlagerungsauftraege an Lager 100 aus der SoftM-Schnittstelle ISK00 und
 schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange.
 
 http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Nutzung
@@ -24,7 +24,6 @@ import cs.zwitscher
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import optparse
-import produktpass.models
 import sys
 
 
@@ -34,24 +33,23 @@ def transfer_umlagerungen():
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
-    chan = messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager,
-                                 durable=True)
-    
+    messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
+
     rowcounter = 0
     for row in rows:
-        komminr, kommiposition, menge, satznr = row
-        artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_lager(komminr, kommipos)
-        
+        komminr, kommiposnr, menge, satznr = row
+        artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
+
         if int(lagernr) != options.lager:
             continue
-        
+
         rowcounter += 1
-        if maxnum and (rowcounter > options.maxnum):
+        if options.maxnum and (rowcounter > options.maxnum):
             break
-        
+
         if options.debug:
-            print komminr, kommiposition, menge, satznr, artnr, lager
-        
+            print komminr, kommiposnr, menge, satznr, artnr, lagernr
+
         if menge < 1:
             msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
             cs.zwitscher.zwitscher(msg, username='mypl')
@@ -60,21 +58,21 @@ def transfer_umlagerungen():
         else:
             lock_handle = isk00.lock(satznr)
             doc = messaging.empty_message('einlagerungen_ic2wms',
-                                          guid="%s-%s" % (komminr, kommipos),
+                                          guid="%s-%s" % (komminr, kommiposnr),
                                           audit_trail='import_umlagerungen',
-                                          audit_info='Auftrag aus SoftM',
-                                          batchnr=komminr,
-                                          menge=menge,
-                                          artnr=artnr,
-                                          referenzen={})
+                                          audit_info='Auftrag aus SoftM')
+            doc.update(dict(batchnr=komminr,
+                            menge=menge,
+                            artnr=artnr,
+                            referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
+
             if options.debug:
                 print doc
-            
+
+            messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
             if not options.dry_run:
-                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
                 isk00.delete(lock_handle)
             isk00.unlock(lock_handle)
-    
 
 
 def main():
@@ -86,16 +84,16 @@ def main():
                          + 'erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int",
-                      help='Lagernummer, dass bearbeitet werden soll')
+                      help='Lager, dass bearbeitet werden soll')
     parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--maxnum', type='int',
-                      help='Maximale Anzahl der zu transferierenden Datensätze [default: unlimited]')
+                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
     options, args = parser.parse_args()
     if args:
         parser.error("incorrect number of arguments")
-    if 'lager' not in options:
+    if not options.lager:
         parser.error("'--lager' nicht gesetzt")
     
     transfer_umlagerungen()
