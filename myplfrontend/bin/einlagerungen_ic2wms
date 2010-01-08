@@ -74,7 +74,6 @@ def transfer_umlagerungen():
                 messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
                 isk00.delete(lock_handle)
             isk00.unlock(lock_handle)
-    
 
 
 def main():

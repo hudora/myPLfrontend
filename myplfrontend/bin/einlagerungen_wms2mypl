@@ -12,10 +12,8 @@ https://cybernetics.hudora.biz/intern/trac/browser/projects/cs/trunk/doc/messagi
 
 Created by Lars Ronge on 2007-12-12.
 Rewritten by Maximillian Dornseif 2008-12, 2009-12
-Copyright (c) 2007, 2008, 2009 HUDORA GmbH.
+Copyright (c) 2007-2010 HUDORA GmbH.
 """
-
-__revision__ = "$Revision$"
 
 # From http://superjared.com/entry/django-and-crontab-best-friends/
 from django.core.management import setup_environ
@@ -38,8 +36,7 @@ process_messages = True
 
 
 parser = OptionParser(version=True)
-parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
-                                                   mypl.models.__revision__.strip('$Revision: '))
+parser.version = "%%prog" 
 parser.description = ('Uebernimmt Umlagerungsauftraege als Warenzugangsmeldungen und lagert diese im '
                      + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten '
                      + 'Platz und  erzeugt eine Palettenfahne.')
