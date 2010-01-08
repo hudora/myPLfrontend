@@ -1,10 +1,11 @@
-# add names of required Python modules here
 -f https://cybernetics.hudora.biz/nonpublic/eggs/
-hudoratools
-hudjango
 Django==1.0.2-final
 python-memcached
-cs>=0.09p1
 couchdb
+simplejson
+huTools>=0.40
+huDjango
+hudoratools
+cs>=0.09p1
 mypl
 -e git+http://github.com/hudora/huSoftM.git#egg=huSoftM

@@ -21,9 +21,11 @@ setup_environ(settings)
 
 import cs.messaging as messaging
 import cs.zwitscher
+import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import optparse
+import simplejson as json
 import sys
 
 
@@ -69,6 +71,12 @@ def transfer_umlagerungen():
             if options.debug:
                 print doc
 
+            # log file for replaying in case of errors
+            logdata = json.dumps(doc, sort_keys=True, separators=(',',':'))
+            nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+            nstring.write(logdata)
+            nstring.file.close()
+
             messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
             if not options.dry_run:
                 isk00.delete(lock_handle)
@@ -84,7 +92,9 @@ def main():
                          + 'erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int",
-                      help='Lager, dass bearbeitet werden soll')
+                      help='Lager, das bearbeitet werden soll')
+    parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
+                      help='Wo sollen die Nachrichten protokolliert werden?')
     parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--maxnum', type='int',

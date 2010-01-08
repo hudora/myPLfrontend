@@ -16,14 +16,14 @@ import settings
 setup_environ(settings)
 
 from mypl.kernel import Kerneladapter
+import cs.masterdata.article
 import cs.messaging as messaging
 import cs.zwitscher
+import huTools.NetStringIO as NetStringIO
+import mypl.models
 import optparse
-import produktpass.models
 import signal
 import simplejson as json
-import sys
-import cs.masterdata.article
 
 process_messages = True
 message_count = 0
@@ -67,7 +67,7 @@ def _move_units_to_good_location(muis):
         if movement_id:
             mypl.models.Movement(movement_id).output_on_printer(printer="DruckerTesler")
         else:
-            cs.zwitscher.zwitscher('%s: Kein passender Lagerplatz. Palette verbleibt auf EINLAG #warning' % mui,
+            cs.zwitscher.zwitscher('%s: Kein passender Lagerplatz. Palette bleibt auf EINLAG #warning' % mui,
                                    username='mypl')
 
 
@@ -80,7 +80,6 @@ def _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
         cs.zwitscher.zwitscher(msg, username='mypl')
         print msg.encode('utf-8', 'ignore')
     else:
-        # TODO: use cs.masterdata
         product = cs.masterdata.article.eap(artnr)
         msg = None
         if not product:
@@ -103,8 +102,15 @@ def _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
                     for quantity in split_quantities(menge, product['palettenfaktor'])]
         
         referenzen.update({'komminr': str(batchnr), 'source': 'umlagerung'})
+
+        # log file for replaying in case of errors
+        logdata = json.dumps((guid, "EINLAG", elements, referenzen), separators=(',',':'))
         if options.debug:
-            print 'kernel.store_at_location_multi%r' % ((guid, "EINLAG", elements, referenzen),)
+            print logdata
+        nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+        nstring.write(logdata)
+        nstring.file.close()
+
         kernel = Kerneladapter()
         if not options.dry_run:
             muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
@@ -131,8 +137,6 @@ def handle_message(message):
     guid, menge, artnr, batchnr, referenzen = decodiere_message(message)
     if options.debug:
         print message_count, guid, menge, artnr, batchnr, referenzen
-    # TODO: add logging
-    # log_message('nullen', kommibeleg, hugogramm)
     muis = _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen)
     if muis:
         _move_units_to_good_location(muis)
@@ -162,7 +166,9 @@ def main():
                          + 'Platz und  erzeugt eine Palettenfahne.')
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int",
-                      help='Lager, dass bearbeitet werden soll')
+                      help='Lager, das bearbeitet werden soll')
+    parser.add_option('--log', default='/var/log/wms2mypl_einlagerungen.log',
+                      help='Wo sollen die Nachrichten protokolliert werden?')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
     parser.add_option('--maxnum', type='int',
