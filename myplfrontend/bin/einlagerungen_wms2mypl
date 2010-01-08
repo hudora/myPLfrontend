@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-Uebernimmt Umlagerungsauftraege an Lager 100 aus der Soft-Schnittstelle ISK00 und lagert diese im
-'myPL ein (EINLAG). Erstellt ausserdem eine Warenbewegung im myPL an einen geeigneten Platz und
+Uebernimmt Warenzugangsmeldungen für Lager 100 aus einer Nachrichtenschlange und lagert diese im
+myPL ein (EINLAG). Erstellt ausserdem eine Warenbewegung im myPL an einen geeigneten Platz und
 erzeugt eine Palettenfahne.
-
-http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Kommunikation.
-
-Zusätzlich werden Warenzugangsmeldungen nach
-https://cybernetics.hudora.biz/intern/trac/browser/projects/cs/trunk/doc/messaging_ic-wms.rst erzeugt.
 
 Created by Lars Ronge on 2007-12-12.
 Rewritten by Maximillian Dornseif 2008-12, 2009-12
@@ -20,30 +15,43 @@ from django.core.management import setup_environ
 import settings
 setup_environ(settings)
 
-from husoftm.lagerschnittstelle import ISK00
-from husoftm.lieferscheine import kbpos2artnr
 from mypl.kernel import Kerneladapter
-from mypl.utils import split_quantities
-from optparse import OptionParser
 import cs.messaging as messaging
-import mypl.models
-import produktpass.models
-import sys
 import cs.zwitscher
-
+import optparse
+import produktpass.models
+import signal
+import simplejson as json
+import sys
+import cs.masterdata.article
 
 process_messages = True
+message_count = 0
 
 
-parser = OptionParser(version=True)
-parser.version = "%%prog" 
-parser.description = ('Uebernimmt Umlagerungsauftraege als Warenzugangsmeldungen und lagert diese im '
-                     + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten '
-                     + 'Platz und  erzeugt eine Palettenfahne.')
-parser.set_usage('usage: %prog [options]')
-parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
-parser.add_option('--maxnum', type='int',
-                  help='Maximum number of rows to trasfer before exiting [defaut: unlimited]')
+def split_quantities(quantity, per_unit):
+    """Splits quantity in units not larger than per_unit.
+    
+    >>> split_quantities(512.0, 100.0)
+    [100, 100, 100, 100, 100, 12]
+    >>> split_quantities('512', None)
+    [512]
+    >>> split_quantities('512.0', 1000)
+    [512]
+    >>> split_quantities(512, -10)
+    [512]
+    """
+    
+    quantity = int(float(quantity))
+    if not per_unit or per_unit < 1:
+        return [quantity]
+    else:
+        per_unit = int(float(per_unit))
+        ret = []
+        while quantity > 0:
+            ret.append(min([quantity, per_unit]))
+            quantity -= per_unit
+        return ret
 
 
 def _move_units_to_good_location(muis):
@@ -63,63 +71,75 @@ def _move_units_to_good_location(muis):
                                    username='mypl')
 
 
-def _umlagerung_to_unit(guid, menge, artnr, batchnr):
+def _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
     """Converts a Umlagerungsposition to an Unit in the Kernel. Returns MUIs generated."""
-    
-    if options.debug:
-        print guid, menge, artnr, batchnr
     
     muis = []
     if menge < 1:
-        if options.debug:
-            msg = 'Umlagerung %s hat Positionen ohne Menge (0) fuer %s - interessant ... #warn' % (batchnr, artnr)
-            print msg
+        msg = 'Umlagerung %s hat Positionen ohne Menge (0) fuer %s #warn' % (batchnr, artnr)
+        cs.zwitscher.zwitscher(msg, username='mypl')
+        print msg.encode('utf-8', 'ignore')
     else:
         # TODO: use cs.masterdata
-        products = produktpass.models.Product.objects.filter(artnr=artnr)
+        product = cs.masterdata.article.eap(artnr)
         msg = None
-        if not products:
+        if not product:
             msg = u'%s: Kein Artikelpass. Einlagerung abgebrochen. #error' % artnr
         else:
-            product = products[0]
-            if not product.palettenfaktor:
+            if not product['palettenfaktor']:
                 msg = u'%s: Kein Palettenfaktor. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-            if not product.pallet_height:
+            if not product['pallet_height']:
                 msg = u'%s: Palettenhöhe unbekannt. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-            elif product.pallet_height > 2100:
+            elif product['pallet_height'] > 2100:
                 msg = u'%s: Palettenhöhe (%s) zu hoch. Übernahme steht #error' % (artnr,
-                            product.pallet_height)
+                            product['pallet_height'])
         
         if msg:
             print msg.encode('utf-8', 'ignore')
             cs.zwitscher.zwitscher(msg, username='mypl')
             return [] # this leaves a stale message
         
-        uid = "%s-%s" % (komminr, kommipos)
-        kernel = Kerneladapter()
-        elements = [(quantity, artnr, product.pallet_height) for quantity in split_quantities(menge, product.palettenfaktor)]
+        elements = [(quantity, artnr, product['pallet_height']) 
+                    for quantity in split_quantities(menge, product['palettenfaktor'])]
+        
+        referenzen.update({'komminr': str(batchnr), 'source': 'umlagerung'})
         if options.debug:
-            print uid, elements
-        muis = kernel.store_at_location_multi(uid, "EINLAG", elements, {'komminr': str(komminr),
-                                                                        'source': 'umlagerung'})
+            print 'kernel.store_at_location_multi%r' % ((guid, "EINLAG", elements, referenzen),)
+        kernel = Kerneladapter()
+        if not options.dry_run:
+            muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
     
     if options.debug:
         print muis
     return muis
 
+
+def decodiere_message(message):
+    body = json.loads(message.body)
+    return body['guid'], body['menge'], body['artnr'], body['batchnr'], body['referenzen']
+
+
 def handle_message(message):
     """Callback function used by channel.basic_consume for adding 'Warenzugang' to myPL."""
-    
-    guid, menge, artnr, batchnr = decodiere_message(message)
+    global message_count
+
+    message_count += 1
+    if message_count > options.maxnum:
+        cancel_processing()
+        return
+
+    guid, menge, artnr, batchnr, referenzen = decodiere_message(message)
+    if options.debug:
+        print message_count, guid, menge, artnr, batchnr, referenzen
     # TODO: add logging
     # log_message('nullen', kommibeleg, hugogramm)
-    muis = _umlagerung_to_unit(guid, menge, artnr, batchnr)
+    muis = _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen)
     if muis:
         _move_units_to_good_location(muis)
         channel.basic_ack(message.delivery_tag)
-    
 
-# This might go somewhere like a signal handler
+
+# Might be used as a signal hander
 def cancel_processing():
     """ Stop consuming messages from RabbitMQ """
     global process_messages
@@ -129,37 +149,48 @@ def cancel_processing():
     process_messages = False
     # Tell the channel you dont want to consume anymore
     channel.basic_cancel(consumer_tag)
-    
 
-def main(options):
-    """Setum message consuming."""
-    global channel, consumer_tag
-    
-    channel = messaging.setup_queue('erp.cs-wms.warenzugang#100', durable=True)
-    
-    connection, channel = init_broker()
-    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.warenzugang#100l', callback=handle_message)
-    
-    signal(SIGTERM, lambda signum, stack_frame: cancel_processing())
-    signal(SIGINT, lambda signum, stack_frame: cancel_processing())
-    
+
+def main():
+    """Setup message consuming."""
+    global channel, consumer_tag, options
+
+    parser = optparse.OptionParser()
+    parser.version = "%%prog" 
+    parser.description = ('Uebernimmt Warenzugangsmeldungen aus einer Warteschlange und lagert diese im'
+                         + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten'
+                         + 'Platz und  erzeugt eine Palettenfahne.')
+    parser.set_usage('usage: %prog [options]')
+    parser.add_option('--lager', type="int",
+                      help='Lager, dass bearbeitet werden soll')
+    parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+    parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+    parser.add_option('--maxnum', type='int',
+                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+
+    options, args = parser.parse_args()
+    if args:
+        parser.error("incorrect number of arguments")
+    if not options.lager:
+        parser.error("'--lager' nicht gesetzt")
+
+    channel = messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
+    consumer_tag = channel.basic_consume(queue='erp.ic-wms.warenzugang#%d' % options.lager,
+                                         callback=handle_message)
+
+    signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
+    signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
+
     if options.debug:
         print "waiting for messages ..."
     
-    # Loop while process_messages is True
+    # Loop while process_messages is True - could be set to False by signal handlers
     while process_messages:
         # Wait for a message
         channel.wait()
     
     channel.close()
-    connection.close()
-    
-
-options, args = parse_commandline()
-if args:
-    parser.error("incorrect number of arguments")
-main(options)
 
 
 if __name__ == '__main__':
-    main(*parse_commandline())
+    main()

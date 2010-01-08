@@ -1,0 +1,5 @@
+build/
+pip-log.txt
+*~
+*.pyc
+src/
