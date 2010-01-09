@@ -3,3 +3,5 @@ pip-log.txt
 *~
 *.pyc
 src/
+generic_templates/
+pythonenv/

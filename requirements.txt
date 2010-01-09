@@ -1,5 +1,5 @@
 -f https://cybernetics.hudora.biz/nonpublic/eggs/
-Django==1.0.2-final
+Django
 python-memcached
 couchdb
 simplejson

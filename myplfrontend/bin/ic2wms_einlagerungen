@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""Uebernimmt Umlagerungsauftraege an Lager 100 aus der SoftM-Schnittstelle ISK00 und
+"""Uebernimmt Umlagerungsauftraege an Lager ein Lager aus der SoftM-Schnittstelle ISK00 und
 schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange.
 
 http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Nutzung
@@ -14,11 +14,6 @@ Rewritten by Maximillian Dornseif 2008-12 and 2009-12.
 Copyright (c) 2007-2010 HUDORA GmbH.
 """
 
-# From http://superjared.com/entry/django-and-crontab-best-friends/
-from django.core.management import setup_environ
-import settings
-setup_environ(settings)
-
 import cs.messaging as messaging
 import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
@@ -27,6 +22,19 @@ import husoftm.lieferscheine
 import optparse
 import simplejson as json
 import sys
+import time
+
+def display(msg):
+    if options.debug or (not options.quiet):
+        print (msg)
+        sys.stdout.flush()
+
+
+def write_journal(doc):
+    logdata = json.dumps(doc, sort_keys=True, separators=(',',':'))
+    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+    nstring.write(logdata)
+    nstring.file.close()
 
 
 def transfer_umlagerungen():
@@ -39,27 +47,31 @@ def transfer_umlagerungen():
 
     rowcounter = 0
     for row in rows:
+        print row
+        display("Processing Messages")
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
 
         if int(lagernr) != options.lager:
+            if options.debug:
+                print "wrong lager"
             continue
 
         rowcounter += 1
         if options.maxnum and (rowcounter > options.maxnum):
-            break
+            display("Maximum number of messages reached, exiting")
+            sys.exit(0)
 
         if options.debug:
-            print komminr, kommiposnr, menge, satznr, artnr, lagernr
+            display(komminr, kommiposnr, menge, satznr, artnr, lagernr)
 
         if menge < 1:
             msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
             cs.zwitscher.zwitscher(msg, username='mypl')
-            if options.debug:
-                print msg
+            display(msg)
         else:
             lock_handle = isk00.lock(satznr)
-            doc = messaging.empty_message('einlagerungen_ic2wms',
+            doc = messaging.empty_message('ic2wms_einlagerungen',
                                           guid="%s-%s" % (komminr, kommiposnr),
                                           audit_trail='import_umlagerungen',
                                           audit_info='Auftrag aus SoftM')
@@ -69,16 +81,13 @@ def transfer_umlagerungen():
                             referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
 
             if options.debug:
-                print doc
+                display(doc)
 
-            # log file for replaying in case of errors
-            logdata = json.dumps(doc, sort_keys=True, separators=(',',':'))
-            nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-            nstring.write(logdata)
-            nstring.file.close()
-
-            messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
             if not options.dry_run:
+                # log file for replaying in case of errors
+                write_journal(doc)
+                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
+                messaging.publish(doc, 'log.ic-wms.warenzugang')
                 isk00.delete(lock_handle)
             isk00.unlock(lock_handle)
 
@@ -94,9 +103,14 @@ def main():
     parser.add_option('--lager', type="int",
                       help='Lager, das bearbeitet werden soll')
     parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
-                      help='Wo sollen die Nachrichten protokolliert werden?')
-    parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+                      help='Wo sollen die Nachrichten protokolliert werden? [%default]')
+    parser.add_option('--continuous', action='store_true',
+                      help='Run continuously forever')
+    parser.add_option('--sleep', type="int", default=47,
+                      help='Pause zwischen Durchlaeufen, wenn --continuous verwendet wird [%default s]')
+    parser.add_option('--quiet', action='store_true', help='UEbliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+    parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
@@ -106,7 +120,13 @@ def main():
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
     
-    transfer_umlagerungen()
+    display("Starting ...")
+    while True:
+        transfer_umlagerungen()
+        if not options.continuous:
+            break
+        time.sleep(options.sleep)
+        
     return 0
 
 
