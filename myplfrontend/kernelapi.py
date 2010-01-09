@@ -36,7 +36,7 @@ def get_audit(view, key):
         audit.append(fix_timestamps(doc))
     audit.sort(key=itemgetter('created_at'), reverse=True)
     return audit
-    
+
 
 def fix_timestamp(value):
     """Converts a single string timestamp to a datetime object in the local timezone.
@@ -70,18 +70,18 @@ def fix_timestamps(doc):
     only keys ending with "_at" will be converted to datetime objects in the local timezone.
     Timestamps are assumed to be UTC.
     """
-    
+
     for key, value in doc.items():
         if key.endswith('_at'):
             doc[key] = fix_timestamp(value)
     return doc
-    
+
 
 def utc_to_local(timestamp):
     """Convert UTC to the local timezone"""
     secs = calendar.timegm(timestamp)
     return time.localtime(secs)
-    
+
 
 def e2string(data):
     """Turn an Erlang String into a Python string."""
@@ -139,11 +139,9 @@ def _send_delete_to_kernel(path, data):
         raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
 
 
-## API
-
 def get_abc():
     """Get abc classification of warehouse contents based on picks in the last 45 days.
-    
+
     Keep in mind that products not picked in the last 45 days will not appear here.
 
     Return value is a dictionary w/ keys 'a', 'b', 'c'.
@@ -175,10 +173,10 @@ def get_article_list():
 
     >>> myplfrontend.kernelapi.get_article_list()
     ['01020', '01023', '10008', ..., 'WK84020']
-    
+
     """
     return _get_data_from_kernel('product')
-    
+
 
 def get_article(artnr):
     """Liefert informationen zu einem Artikel im Kernel.
@@ -191,10 +189,10 @@ def get_article(artnr):
      'pick_quantity': 0,
      'available_quantity': 104,
      'movement_quantity': 0}
-    
+
     """
     return _get_data_from_kernel('product/%s' % artnr)
-    
+
 
 def get_article_audit(artnr):
     """Get audit information for an article.
@@ -214,7 +212,7 @@ def get_article_audit(artnr):
       '_rev': '2-998a3cccfdb6016a6928b3489adbca5d',
       ...},
       ...]
-    
+
     """
     server = couchdb.client.Server(COUCHSERVER)
     tmp_audit = server['mypl_audit'].view('selection/articleaudit',
@@ -223,17 +221,17 @@ def get_article_audit(artnr):
     for entry in tmp_audit:
         audit.append(fix_timestamps(dict(entry.doc)))
     return audit
-    
+
 
 def get_movements_list():
     """Liefert eine Liste aller nicht erledigten Movements.
 
     >>> myplfrontend.kernelapi.get_movements_list()
     ['mb08546054', 'mr08548916', 'mr08548928']
-    
+
     """
     return _get_data_from_kernel("movement")
-    
+
 
 def get_movement(movementid):
     """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Movement.
@@ -248,7 +246,7 @@ def get_movement(movementid):
      'oid': 'mb08546054',
      'status': 'open',
      'to_location': '163002'}
-    
+
     """
     movement = _get_data_from_kernel('movement/%s' % movementid)
     if movement:
@@ -256,7 +254,8 @@ def get_movement(movementid):
     else:
         # Movement aus dem Archiv holen
         server = couchdb.client.Server(COUCHSERVER)
-        movement = server['mypl_archive'].view('selection/movements', key=movementid, limit=1, include_docs=True)
+        movement = server['mypl_archive'].view('selection/movements', key=movementid, limit=1,
+                                               include_docs=True)
         if not movement:
             return None
         movement = list(movement)[0].doc # without conversion to list integer indexes don't work
@@ -266,7 +265,9 @@ def get_movement(movementid):
             changed, movement['artnr'] = True, movement.get('product', '')
         if 'interne_umlagerung' not in movement:
             if 'mypl_notify_requestracker' in movement.get('prop', {}):
-                changed, movement['interne_umlagerung'] = True, movement.get('prop', {}).get('mypl_notify_requestracker', False)
+                changed, = True
+                movement['interne_umlagerung'] = movement.get('prop', {
+                                                              }).get('mypl_notify_requestracker', False)
             else:
                 changed, movement['interne_umlagerung'] = True, False
         if 'to_location' not in movement:
@@ -275,33 +276,33 @@ def get_movement(movementid):
             changed, movement['from_location'] = True, movement.get('prop', {}).get('from_location', '')
         if 'status' not in movement:
             changed, movement['status'] = True, 'archived'
-        #'attributes': {'committed_at': '20081210T00071056.295023', 
-        #'kernel_provisioninglist_id': 'p06405646', 
-        #'kernel_published_at': '20081210T00061028.000000'}, 
+        #'attributes': {'committed_at': '20081210T00071056.295023',
+        #'kernel_provisioninglist_id': 'p06405646',
+        #'kernel_published_at': '20081210T00061028.000000'},
         if changed:
             try:
                 server['mypl_archive'][movement.id] = movement
             except couchdb.client.ResourceConflict:
                 pass # try next time
-        
+
         movement['archived'] = True
     movement = fix_timestamps(movement)
     return dict(movement) #this is to convert a couchdb objet into a real dict
-    
+
 
 def get_picks_list():
     """Liefert eine Liste aller nicht erledigten Picks.
 
     >>> myplfrontend.kernelapi.get_picks_list()
     ['P08548169', 'P08548153']
-    
+
     """
     return _get_data_from_kernel("pick")
-    
+
 
 def get_pick(pickid):
     """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Pick.
-    
+
     from kernelE:
     >>> myplfrontend.kernelapi.get_pick(pickid)
     {'archived': False,
@@ -316,7 +317,7 @@ def get_pick(pickid):
      'menge': 10,
      'oid': 'P08548169',
      'status': 'open'}
-    
+
     from archive:
     >>> myplfrontend.kernelapi.get_pick(pickid)
     {'_id': 'P00149533',
@@ -337,7 +338,6 @@ def get_pick(pickid):
      'status': 'archived',
      'transaction': 'commit_pick',
      'type': 'pick'}
-    
 
     """
     pick = _get_data_from_kernel("pick/%s" % pickid)
@@ -361,23 +361,25 @@ def get_pick(pickid):
         if 'status' not in pick:
             changed, pick['status'] = True, 'archived'
         if 'kernel_provisioninglist_id' not in pick:
-            changed, pick['kernel_provisioninglist_id'] = True, pick.get('attributes', {}).get('kernel_provisioninglist_id', '')
+            changed = True
+            pick['kernel_provisioninglist_id'] = pick.get('attributes', {
+                                                          }).get('kernel_provisioninglist_id', '')
         if 'provpipeline_id' not in pick:
             changed, pick['provpipeline_id'] = True, pick.get('prop', {}).get('provpipeline_id', '')
-        #'attributes': {'committed_at': '20081210T00071056.295023', 
-        #'kernel_provisioninglist_id': 'p06405646', 
-        #'kernel_published_at': '20081210T00061028.000000'}, 
+        #'attributes': {'committed_at': '20081210T00071056.295023',
+        #'kernel_provisioninglist_id': 'p06405646',
+        #'kernel_published_at': '20081210T00061028.000000'},
         if changed:
             try:
                 server['mypl_archive'][pick.id] = pick
             except couchdb.client.ResourceConflict:
                 pass # try next time
-        
+
         pick['archived'] = True
-    
+
     pick = fix_timestamps(pick)
     return dict(pick)
-    
+
 
 def get_kommiauftrag_list():
     """Liefert eine Liste aller nicht erledigten Kommiaufträge.
@@ -392,7 +394,7 @@ def get_kommiauftrag_list():
 
     """
     return _get_data_from_kernel('kommiauftrag')
-    
+
 
 def get_kommiauftrag(kommiauftragnr):
     """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Kommiauftrag.
@@ -480,7 +482,7 @@ def get_kommiauftrag(kommiauftragnr):
             new_orderlines.append(orderline)
         kommiauftrag['orderlines'] = new_orderlines
         kommiauftrag['archived'] = True
-        
+
         # fix legacy records
         changed = False
         if 'provisioninglists' in kommiauftrag:
@@ -497,7 +499,7 @@ def get_kommiauftrag(kommiauftragnr):
                 pass # try next time
 
     kommiauftrag['orderlines_count'] = len(kommiauftrag['orderlines'])
-    
+
     kommiauftrag = fix_timestamps(kommiauftrag)
     return dict(kommiauftrag)
 
@@ -513,7 +515,7 @@ def get_kommischein_list():
 
     >>> myplfrontend.kernelapi.get_kommischein_list()
     ['r08549072']
-    
+
     """
     return _get_data_from_kernel('kommischein')
 
@@ -570,7 +572,7 @@ def get_kommischein(kommischeinnr):
      'type': 'picklist',
      'volume': 262.19200000000001,
      'weight': 24020}
-    
+
 
     """
     kommischein = _get_data_from_kernel('kommischein/%s' % kommischeinnr)
@@ -585,7 +587,7 @@ def get_kommischein(kommischeinnr):
             kommischein = dict(fix_timestamps(row.doc))
     kommischein.update({'id': kommischeinnr})
     return kommischein
-    
+
 
 def get_units_list():
     """Liefert eine Liste aller im Lager befindlichen Units.
@@ -599,14 +601,14 @@ def get_units_list():
      '3099288',
      '3099219',
      ...]
-    
+
     """
     return _get_data_from_kernel('unit')
-    
+
 
 def get_unit(mui):
     """Return detailed information about a unit.
-    
+
     Information is taken from couchdb archive, if nothing found in kernel
 
     >>> import myplfrontend.kernelapi
@@ -637,7 +639,7 @@ def get_unit(mui):
         else:
             return {}
     return fix_timestamps(dict(unit))
-    
+
 
 def set_unit_height(mui, height):
     """Set the height of a pallet and return the pallet data."""
@@ -646,7 +648,7 @@ def set_unit_height(mui, height):
 
 def get_location_list():
     """Returns the full list of locations in the warehouse.
-    
+
     >>> myplfrontend.kernelapi.get_location_list()
     ['011301', '011302', '011303', '011401', '011402', '011403', '011501', '011502', '011503', ...]
 
@@ -665,7 +667,7 @@ def get_location(location):
      'name': '011301',
      'preference': 5,
      'reserved_for': []}
-        
+
     """
     return _get_data_from_kernel('location/%s' % location)
 
@@ -708,8 +710,8 @@ def find_provisioning_candidates(menge, artnr):
     """Hiermit kann ein Komissioniervorschlag für eine bestimmte Menge eines Artikels erstellt werden.
 
     Falls keine passenden Mengen gefunden werden können - z.B. will erst noch eine Umlagerung durchgeführt
-    werden muss - wird der Statuscode None zurückgegeben. Sollte das Lager weniger Bestand als gefordert haben,
-    wird ein RuntimeError (Statuscode 403) zurückgegeben.
+    werden muss - wird der Statuscode None zurückgegeben. Sollte das Lager weniger Bestand als gefordert
+    haben, wird ein RuntimeError (Statuscode 403) zurückgegeben.
 
     >>> myplfrontend.kernelapi.find_provisioning_candidates(1, 10147)
     {"retrievals":[],"picks":[{"menge":1,"mui":"340059981002563591"}]}
@@ -722,6 +724,6 @@ def requesttracker():
     """Zeigt Informationen über den RequestTracker an.
 
     Der Requestracker koordiniert, welche Palettne herunter gelagert werden sollen.
-   
+
     """
     return _get_data_from_kernel("requesttracker")

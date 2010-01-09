@@ -482,34 +482,6 @@ class MyPLConfig(models.Model):
         verbose_name_plural = u"MyPL Configurations"
 
 
-class Movement(object):
-    """Represents a Movement in MyPL"""
-
-    def __init__(self, theid, kernel=None):
-        if kernel == None:
-            kernel = Kerneladapter()
-        #super(Movement, self).__init__()
-        movement_info = kernel.movement_info(theid)
-        self.id = theid
-        self.created_at = movement_info['created_at']
-        self.location_to = movement_info['to_location']
-        self.location_from = movement_info['from_location']
-        self.mui = movement_info['mui']
-        self.attributes = movement_info['attributes']
-
-        unit_info = kernel.unit_info(self.mui)
-        self.artnr = unit_info['product']
-        self.unit_height = unit_info['height']
-        self.quantity = unit_info['quantity']
-        self.unit_created_at = unit_info['created_at']
-
-    def output_on_printer(self, printer="DruckerAllmanFach2"):
-        """Outputs a Movement on a printer."""
-        pyjasper = MovementGenerator()
-        pdf = pyjasper.generate(self)
-        huTools.printing.print_data(pdf, printer=printer)
-
-
 def get_provisionings_by_id(kommi_id):
     """Returns the picklist and the retrievallist for an ID.
 

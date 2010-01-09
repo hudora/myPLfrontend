@@ -4,19 +4,19 @@
 tools.py
 
 Created by Lars Ronge on 2008-02-26.
-Copyright (c) 2008 __MyCompanyName__. All rights reserved.
+Copyright (c) 2008 HUDORA. All rights reserved.
 """
 
 import unittest
 import husoftm.bestaende
 import myplfrontend.kernelapi
 import itertools
-    
+
 
 def find_softm_differences():
     """Find articles which have different quantities in myPL as their SoftM counterparts."""
     softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
-    kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in 
+    kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in
                         (myplfrontend.kernelapi.get_article(article) for article in myplfrontend.kernelapi.get_article_list()))
     difkernel2softm = kernelbestand.difference(softmbestand)
     difsoftm2kernel = softmbestand.difference(kernelbestand)
@@ -47,7 +47,7 @@ def compare_locations(s_location, o_location):
     """Compares two Locations regarding the following rules:
     1st - Compare the aisles (two rows make up on aisle)
     2nd - Compare the rows
-    
+
     >>> compare_locations("020501", "030201")
     1
     >>> compare_locations("020501", "030501")
@@ -67,29 +67,29 @@ def compare_locations(s_location, o_location):
 
     if not s_location.isdigit():
         return -1
-                               
+
     if not o_location.isdigit():
         return 1
-                                                
+
     s_row = s_location[:2]
     s_aisle = 1 + (int(s_row) / 2)
-    
+
     o_row = o_location[:2]
     o_aisle = 1 + (int(o_row) / 2)
-    
+
     if int(s_aisle) > int(o_aisle):
         return 1
     elif int(s_aisle) < int(o_aisle):
         return -1
-    
+
     s_column = s_location[2:4]
     o_column = o_location[2:4]
-    
+
     if int(s_column) > int(o_column):
         return 1
     elif int(s_column) < int(o_column):
         return -1
-    
+
     return 0
 
 
@@ -97,16 +97,16 @@ def sort_plaetze(items, key='location_from'):
     """Sortiert eine Menge von Lagerplätzen nach folgendem Kriterium:
     Reihen werden zu Gängen zusammengefasst, die Plätze der zu besuchenden Gänge werden abwechselnd
     auf- und absteigend sortiert. Siehe http://blogs.23.nu/disLEXiaDE/stories/15539/
-    
+
     Paramter ist ein dictionary, dessen Schlüssel Lagerplätze nach dem Schema Reihe-Riegel-Ebene sind.
     Die Values sind beliebige Objekte.
 
     Als key wird der Methodenname bzw. der dictitionary Schlüssel vorgegeben, der den Platz repräsentiert.
-    
+
     >>> sort_plaetze([{'location_from': '01-10-01'}, {'location_from': '02-12-01'}, {'location_from': '03-10-01'}, {'location_from': '03-15-01'}, {'location_from': 'EINLAG'}])
     [{'location_from': 'EINLAG'}, {'location_from': '01-10-01'}, {'location_from': '03-15-01'}, {'location_from': '02-12-01'}, {'location_from': '03-10-01'}]
     """
-    
+
     tmp = dict()
     for item in items:
         location = getattr(item, key, None)
@@ -156,7 +156,7 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
         shouldprocess = order['shouldprocess']
         direktfahrt = order.get('versandpaletten', 0) > 6
         order['direktfahrt'] = direktfahrt
-        
+
         if direktfahrt:
             shippingkey = "%s_direktfahrt" % (shouldprocess)
         elif order.get('kep', False):
@@ -168,7 +168,7 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
         if not 'count' in db[shippingkey]:
             db[shippingkey]['count'] = 0
         db[shippingkey]['count'] += 1
-        
+
         for name in fieldnames:
             if 'volume' not in name:
                 db[shippingkey][name] += order.get(name, 0)
@@ -183,7 +183,7 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
 
 class toolsTests(unittest.TestCase):
     """Some tests for the tools-functionalities"""
-    
+
     def setUp(self):
         pass
 

@@ -20,18 +20,38 @@ import cs.masterdata.article
 import cs.messaging as messaging
 import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
+import huTools.printing
 import mypl.models
+import myplfrontend.belege
 import optparse
 import signal
 import simplejson as json
+
 
 process_messages = True
 message_count = 0
 
 
+def display(msg):
+    """Display messages based on command line options."""
+    if options.debug or (not options.quiet):
+        print (msg)
+        sys.stdout.flush()
+
+
+def write_journal(doc):
+    """Write journal entrys of incoming messages."""
+    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
+    if options.debug:
+        print logdata
+    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+    nstring.write(logdata)
+    nstring.file.close()
+
+
 def split_quantities(quantity, per_unit):
     """Splits quantity in units not larger than per_unit.
-    
+
     >>> split_quantities(512.0, 100.0)
     [100, 100, 100, 100, 100, 12]
     >>> split_quantities('512', None)
@@ -41,7 +61,7 @@ def split_quantities(quantity, per_unit):
     >>> split_quantities(512, -10)
     [512]
     """
-    
+
     quantity = int(float(quantity))
     if not per_unit or per_unit < 1:
         return [quantity]
@@ -54,75 +74,71 @@ def split_quantities(quantity, per_unit):
         return ret
 
 
-def _move_units_to_good_location(muis):
+def move_units_to_good_location(muis):
     """Moves units to a good location in the warehouse and prints the Palettenfahne
     and the movement-note.
     """
-    
+
     kernel = Kerneladapter()
     movementids = []
     for mui in muis:
+        # TODO: move to new HTTP-API
         movementids.append((kernel.init_movement_to_good_location(mui), mui))
     for movement_id, mui in movementids:
         if movement_id:
-            mypl.models.Movement(movement_id).output_on_printer(printer="DruckerTesler")
+            # Umlagerbeleg drucken
+            pdf = myplfrontend.belege.get_movement_pdf(movement_id)
+            huTools.printing.print_data(pdf, printer="DruckerTesler")
         else:
             cs.zwitscher.zwitscher('%s: Kein passender Lagerplatz. Palette bleibt auf EINLAG #warning' % mui,
                                    username='mypl')
 
 
-def _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
+def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
     """Converts a Umlagerungsposition to an Unit in the Kernel. Returns MUIs generated."""
-    
+
     muis = []
     if menge < 1:
-        msg = 'Umlagerung %s hat Positionen ohne Menge (0) fuer %s #warn' % (batchnr, artnr)
+        msg = 'Umlagerung %s hat Position ohne Menge (0) fuer %s #warn' % (batchnr, artnr)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        print msg.encode('utf-8', 'ignore')
+        display(msg.encode('utf-8', 'ignore'))
+        return muis
+
+    product = cs.masterdata.article.eap(artnr)
+    msg = None
+    if not product:
+        msg = u'%s: Kein Artikelpass. Einlagerung abgebrochen. #error' % artnr
     else:
-        product = cs.masterdata.article.eap(artnr)
-        msg = None
-        if not product:
-            msg = u'%s: Kein Artikelpass. Einlagerung abgebrochen. #error' % artnr
-        else:
-            if not product['palettenfaktor']:
-                msg = u'%s: Kein Palettenfaktor. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-            if not product['pallet_height']:
-                msg = u'%s: Palettenhöhe unbekannt. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-            elif product['pallet_height'] > 2100:
-                msg = u'%s: Palettenhöhe (%s) zu hoch. Übernahme steht #error' % (artnr,
-                            product['pallet_height'])
-        
-        if msg:
-            print msg.encode('utf-8', 'ignore')
-            cs.zwitscher.zwitscher(msg, username='mypl')
-            return [] # this leaves a stale message
-        
-        elements = [(quantity, artnr, product['pallet_height']) 
-                    for quantity in split_quantities(menge, product['palettenfaktor'])]
-        
-        referenzen.update({'komminr': str(batchnr), 'source': 'umlagerung'})
+        if not product['palettenfaktor']:
+            msg = u'%s: Kein Palettenfaktor. Einlagerung abgebrochen. Übernahme steht #error' % artnr
+        if not product['pallet_height']:
+            msg = u'%s: Palettenhöhe unbekannt. Einlagerung abgebrochen. Übernahme steht #error' % artnr
+        elif product['pallet_height'] > 2100:
+            msg = u'%s: Palettenhöhe (%s) zu hoch. Übernahme steht #error' % (artnr,
+                        product['pallet_height'])
 
-        # log file for replaying in case of errors
-        logdata = json.dumps((guid, "EINLAG", elements, referenzen), separators=(',',':'))
-        if options.debug:
-            print logdata
-        nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-        nstring.write(logdata)
-        nstring.file.close()
+    if msg:
+        cs.zwitscher.zwitscher(msg, username='mypl')
+        display(msg.encode('utf-8', 'ignore'))
+        return muis # this leaves a stale message
 
-        kernel = Kerneladapter()
-        if not options.dry_run:
-            muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
-    
+    # Einlagerung auf Paletten aufteilen
+    elements = [(quantity, artnr, product['pallet_height'])
+                for quantity in split_quantities(menge, product['palettenfaktor'])]
+    referenzen.update({'komminr': str(batchnr), 'source': 'umlagerung', 'paletten': len(elements)})
+
+    # log file for replaying in case of errors
+    write_journal((guid, "EINLAG", elements, referenzen))
+
+    kernel = Kerneladapter()
+    if not options.dry_run:
+        # TODO: move to new HTTP-API
+        muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
+        messaging.publish((guid, "EINLAG", elements, referenzen, muis), 'log.wms-mypl.warenzugang')
+
     if options.debug:
         print muis
     return muis
-
-
-def decodiere_message(message):
-    body = json.loads(message.body)
-    return body['guid'], body['menge'], body['artnr'], body['batchnr'], body['referenzen']
 
 
 def handle_message(message):
@@ -134,23 +150,29 @@ def handle_message(message):
         cancel_processing()
         return
 
-    guid, menge, artnr, batchnr, referenzen = decodiere_message(message)
+    body = json.loads(message.body)
+    guid, menge, artnr = body['guid'], body['menge'], body['artnr']
+    batchnr, referenzen = body['batchnr'], body['referenzen']
     if options.debug:
         print message_count, guid, menge, artnr, batchnr, referenzen
-    muis = _umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen)
+    # umlagerung_to_unit() macht die wirkliche arbeit und überträgt in den kernel.
+    muis = umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen)
     if muis:
-        _move_units_to_good_location(muis)
         channel.basic_ack(message.delivery_tag)
+        # Wenn wir move_units_to_good_location() nicht aufrufen, kümmert sich der Kernel später
+        # selbst um das wegräumen der Paletten, wir sind also im grunde längst fertig.
+        if not options.no_movements:
+            move_units_to_good_location(muis)
 
 
 # Might be used as a signal hander
 def cancel_processing():
     """ Stop consuming messages from RabbitMQ """
     global process_messages
-    
+
     # Do this so we exit our main loop
-    print "Exiting"
     process_messages = False
+    display("Exiting")
     # Tell the channel you dont want to consume anymore
     channel.basic_cancel(consumer_tag)
 
@@ -160,7 +182,7 @@ def main():
     global channel, consumer_tag, options
 
     parser = optparse.OptionParser()
-    parser.version = "%%prog" 
+    parser.version = "%%prog"
     parser.description = ('Uebernimmt Warenzugangsmeldungen aus einer Warteschlange und lagert diese im'
                          + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten'
                          + 'Platz und  erzeugt eine Palettenfahne.')
@@ -168,9 +190,11 @@ def main():
     parser.add_option('--lager', type="int",
                       help='Lager, das bearbeitet werden soll')
     parser.add_option('--log', default='/var/log/wms2mypl_einlagerungen.log',
-                      help='Wo sollen die Nachrichten protokolliert werden?')
+                      help='Wo sollen die Nachrichten protokolliert werden? [%default]')
+    parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
-    parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+    parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
+    parser.add_option('--no-movements', action='store_true', help='Palleten NICHT von EINLAG weglagern.')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
@@ -184,19 +208,20 @@ def main():
     consumer_tag = channel.basic_consume(queue='erp.ic-wms.warenzugang#%d' % options.lager,
                                          callback=handle_message)
 
+    # catch Signals
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    if options.debug:
-        print "waiting for messages ..."
-    
+    display("waiting for messages ...")
+
     # Loop while process_messages is True - could be set to False by signal handlers
     while process_messages:
-        # Wait for a message
+        # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
-    
+
     channel.close()
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

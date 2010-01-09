@@ -4,7 +4,7 @@
 belege.py - Create myPL related pdf documents 
 
 Created by Maximillian Dornseif on 2007-12-13.
-Copyright (c) 2007 HUDORA. All rights reserved.
+Copyright (c) 2007, 2009 HUDORA. All rights reserved.
 """
 
 from myplfrontend.tools import format_locname, sort_plaetze
@@ -16,9 +16,6 @@ import datetime
 import myplfrontend.kernelapi
 import os
 import xml.etree.ElementTree as ET
-
-
-__revision__ = "$Revision$"
 
 
 def _add_subelemententry(root, field, obj_dict):
@@ -125,7 +122,7 @@ class _ProvisioningGenerator(JasperGenerator):
 
     def generate_xml(self, provisioning_id):
         """Generates the XML File used by Jasperreports"""
-        ET.SubElement(self.root, 'generator').text = __revision__
+        ET.SubElement(self.root, 'generator').text = 'myPL'
         ET.SubElement(self.root, 'generated_at').text = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return self.provisioning2xml(provisioning_id)
 
@@ -152,7 +149,7 @@ class _MovementGenerator(JasperGenerator):
     def generate_xml(self, movement_id):
         """Generates the XML File used by Jasperreports"""
 
-        ET.SubElement(self.root, 'generator').text = __revision__
+        ET.SubElement(self.root, 'generator').text = 'myP'
         ET.SubElement(self.root, 'generated_at').text = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         xml_movement = ET.SubElement(self.root, 'movement')
