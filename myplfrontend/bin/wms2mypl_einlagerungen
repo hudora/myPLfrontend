@@ -234,6 +234,8 @@ def main():
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
+        # Request non-acknowledged messages to be re-delivered
+        channel.basic_recover(requeue=True)
 
     channel.close()
     return 0
