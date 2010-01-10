@@ -16,7 +16,7 @@ test:
 
 dependencies:
 	virtualenv pythonenv
-	pip -v install -E pythonenv -r requirements.txt
+	pip -q install -E pythonenv -r requirements.txt
 	# the following line is needed for Django applications
 	sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
 
