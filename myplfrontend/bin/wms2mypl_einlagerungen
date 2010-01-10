@@ -15,17 +15,17 @@ from django.core.management import setup_environ
 import settings
 setup_environ(settings)
 
-from mypl.kernel import Kerneladapter
+import mypl.kernel
 import cs.masterdata.article
 import cs.messaging as messaging
+import cs.printing
 import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
-import huTools.printing
-import mypl.models
 import myplfrontend.belege
 import optparse
 import signal
 import simplejson as json
+import sys
 
 
 process_messages = True
@@ -79,7 +79,7 @@ def move_units_to_good_location(muis):
     and the movement-note.
     """
 
-    kernel = Kerneladapter()
+    kernel = mypl.kernel.Kerneladapter()
     movementids = []
     for mui in muis:
         # TODO: move to new HTTP-API
@@ -88,7 +88,7 @@ def move_units_to_good_location(muis):
         if movement_id:
             # Umlagerbeleg drucken
             pdf = myplfrontend.belege.get_movement_pdf(movement_id)
-            huTools.printing.print_data(pdf, printer="DruckerTesler")
+            cs.printing.print_data(pdf, printer="DruckerTesler")
         else:
             cs.zwitscher.zwitscher('%s: Kein passender Lagerplatz. Palette bleibt auf EINLAG #warning' % mui,
                                    username='mypl')
@@ -102,25 +102,25 @@ def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
         msg = 'Umlagerung %s hat Position ohne Menge (0) fuer %s #warn' % (batchnr, artnr)
         cs.zwitscher.zwitscher(msg, username='mypl')
         display(msg.encode('utf-8', 'ignore'))
-        return muis
+        return []
 
     product = cs.masterdata.article.eap(artnr)
     msg = None
     if not product:
         msg = u'%s: Kein Artikelpass. Einlagerung abgebrochen. #error' % artnr
     else:
-        if not product['palettenfaktor']:
+        if not product.get('palettenfaktor'):
             msg = u'%s: Kein Palettenfaktor. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-        if not product['pallet_height']:
+        if not product.get('pallet_height'):
             msg = u'%s: Palettenhöhe unbekannt. Einlagerung abgebrochen. Übernahme steht #error' % artnr
-        elif product['pallet_height'] > 2100:
+        elif product.get('pallet_height', 1950) > 2100:
             msg = u'%s: Palettenhöhe (%s) zu hoch. Übernahme steht #error' % (artnr,
                         product['pallet_height'])
 
     if msg:
         cs.zwitscher.zwitscher(msg, username='mypl')
         display(msg.encode('utf-8', 'ignore'))
-        return muis # this leaves a stale message
+        return [] # this leaves a stale message
 
     # Einlagerung auf Paletten aufteilen
     elements = [(quantity, artnr, product['pallet_height'])
@@ -130,11 +130,26 @@ def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
     # log file for replaying in case of errors
     write_journal((guid, "EINLAG", elements, referenzen))
 
-    kernel = Kerneladapter()
+    kernel = mypl.kernel.Kerneladapter()
     if not options.dry_run:
         # TODO: move to new HTTP-API
-        muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
-        messaging.publish((guid, "EINLAG", elements, referenzen, muis), 'log.wms-mypl.warenzugang')
+        # mypl.kernel.mypl_kerneladapter.KernelError: error during storing of [(126, '76404', 1850)]: ['error', 'duplicate_id', '3106032-19']
+        try:
+            muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
+            doc = messaging.empty_message('wms2mypl_einlagerungen',
+                                           guid=guid,
+                                           audit_trail='wms2mypl_einlagerungen',
+                                           audit_info='Auftrag aus SoftM in den KErnel geschrieben')
+            doc.update({'to_location': "EINLAG", 'elements': elements, 'referenzen': referenzen, 'muis': muis})
+            messaging.publish(doc, 'log.wms-mypl.warenzugang')
+        except mypl.kernel.mypl_kerneladapter.KernelError, msg:
+            if "'error', 'duplicate_id'" in str(msg):
+                msg = 'Umlagerung %s kommt doppelt im myPL vor #warn' % batchnr
+                cs.zwitscher.zwitscher(msg, username='mypl')
+                print msg
+                return [None] # special-cased um die Nachricht aus der Queue zu nehmen.
+            else:
+                raise
 
     if options.debug:
         print muis
@@ -145,8 +160,7 @@ def handle_message(message):
     """Callback function used by channel.basic_consume for adding 'Warenzugang' to myPL."""
     global message_count
 
-    message_count += 1
-    if message_count > options.maxnum:
+    if options.maxnum and (message_count > options.maxnum):
         cancel_processing()
         return
 
@@ -162,7 +176,9 @@ def handle_message(message):
         # Wenn wir move_units_to_good_location() nicht aufrufen, kümmert sich der Kernel später
         # selbst um das wegräumen der Paletten, wir sind also im grunde längst fertig.
         if not options.no_movements:
-            move_units_to_good_location(muis)
+            if muis != [None]:
+                move_units_to_good_location(muis)
+        message_count += 1
 
 
 # Might be used as a signal hander
@@ -218,6 +234,8 @@ def main():
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
+        # Request non-acknowledged messages to be re-delivered
+        channel.basic_recover(requeue=True)
 
     channel.close()
     return 0
