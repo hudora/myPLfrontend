@@ -92,7 +92,7 @@ def transfer_kommis():
                                       audit_trail='ic2wms_kommiauftrag',
                                       audit_info='Auftrag aus SoftM')
         doc.update(dict(kommiauftragsnr=komminr,
-                        anliefertermin=softmschein.anlieferdatum,
+                        anliefertermin=softmschein.anlieferdatum.strftime("%Y-%m-%d"),
                         prioritaet=7, # TODO: mit etwas realistischerem befuellen
                         # anliefertermin_ab
                         # versandtermin
@@ -104,7 +104,7 @@ def transfer_kommis():
                         info_kunde=softmschein.auftragsnr_kunde,
                         auftragsnr=softmschein.auftragsnr,
                         kundenname=(' '.join([softmschein.name1, softmschein.name2,
-                                              softmschein.name13])).strip(),
+                                              softmschein.name3])).strip(),
                         # addressprotocol
                         name1=softmschein.name1,
                         strasse=softmschein.strasse,
@@ -120,12 +120,12 @@ def transfer_kommis():
         # Add kommibelegpositionen to doc
         doc['positionen'] = []
         for position in softmschein.positionen:
-            doc['positionen'].append(dict(menge=position.menge_komissionierbeleg,
+            doc['positionen'].append(dict(menge=int(position.menge_komissionierbeleg),
                                           artnr=position.artnr,
                                           posnr=position.auftrags_position,
                                           # text
                                           # EAN
-                                          setartikel=position.setartikel,
+                                          setartikel=(position.setartikel == 1),
                                           kommissionierbeleg_position=position.kommissionierbeleg_position,
                                           kommissionierbelegnr=position.kommissionierbelegnr,
                                           satznummer=position.satznr))
@@ -165,8 +165,8 @@ def main():
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
-    #parser.add_option('--maxnum', type='int',
-    #                  help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+    parser.add_option('--maxnum', type='int',
+                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
     options, args = parser.parse_args()
     if args:
