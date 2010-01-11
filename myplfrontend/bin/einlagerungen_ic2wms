@@ -86,55 +86,6 @@ def transfer_umlagerungen():
             isk00.unlock(lock_handle)
 
 
-def transfer_zugaenge():
-    "Handles the transfer of data SoftM/ISZ00 -> messages"
-    # Hier werden nur Warenzugänge für Lager 100 (ISZ00) behandelt
-    if options.lager != 100:
-        return
-
-    # Hole alle Warenzugangspositionen aus der Schnittstelle
-    zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
-    positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
-    if options.maxnum != None:
-        # FIXME: Das bedeutet, dass nicht unbedingt alle Bestellungen voll abgeschickt werden, das diese in
-        #        einzelnen Positionen verschickt werden. Vielleicht sollte man das abfragen?
-        #        Ausserdem müsste man noch vergleichen, wieviele positionen bereits von transfer_umlagerungen
-        #        verschickt wurden!
-        positionen = itertools.islice(positionen, 0, options.maxnum)
-
-    msgs = []
-    for pos in positionen:
-        guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
-        batchnr = guidbase
-        msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
-               "menge": int(float(pos['menge_berechnet'])),
-               "artnr": pos['artnr'],
-               "batchnr": batchnr}
-        msgs.append(msg)
-
-    # send msges
-    # TODO: Kombinieren mit transfer_umlagerungen (-> refactoring, da ähnliches Vorgehen in beiden funcs)
-    qname = 'erp.ic-wms.warenzugang#%d' % options.lager
-    messaging.setup_queue(qname, durable=True)
-    for msg in msgs:
-        doc = messaging.empty_message('einlagerungen_ic2wms',
-                                      audit_trail='import_warenzugang',
-                                      audit_info='Auftrag aus SoftM')
-        doc.update(msg)
-
-        if options.debug:
-            print doc
-
-        # log file for replaying in case of errors
-        logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-        nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-        nstring.write(logdata)
-        nstring.file.close()
-
-        # FIXME: gehört das nicht auch hinter ein 'if not dry-run:'?
-        messaging.publish(doc, qname)
-
-
 def main():
     """main function - option parsing and calling of transfer_umlagerungen()."""
 

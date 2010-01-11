@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+# encoding: utf-8
+""" ic2wms_wareneingang
+
+Uebernimmt Einlagerungsaufträge an Lager 100 aus der SoftM-Schnittstelle ISZ00 und
+schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange.
+
+http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Nutzung
+der SoftM Schnittstellen.
+
+Die Warenzugangsmeldungen werden in
+http://github.com/hudora/huTools/blob/master/doc/standards/messaging_ic-wms.markdown#readme beschrieben.
+
+
+Created by Christoph Borgolte on 11-01-2010 for HUDORA.
+Copyright (c) 2009 HUDORA. All rights reserved.
+"""
+
+
+if __name__ == "__main__":
+    # From http://superjared.com/entry/django-and-crontab-best-friends/
+    from django.core.management import setup_environ
+    import settings
+    setup_environ(settings)
+
+
+import cs.messaging as messaging
+import cs.zwitscher
+import huTools.NetStringIO as NetStringIO
+import husoftm.warenzugangsschnittstelle
+import itertools
+import optparse
+import simplejson as json
+import sys
+
+
+def transfer_zugaenge():
+    "Handles the transfer of data SoftM/ISZ00 -> messages"
+
+    # Hole alle Warenzugangspositionen aus der Schnittstelle
+    zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
+    positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
+    if options.maxnum != None:
+        # FIXME: Das bedeutet, dass nicht unbedingt alle Bestellungen voll abgeschickt werden, das diese in
+        #        einzelnen Positionen verschickt werden. Vielleicht sollte man das abfragen?
+        positionen = itertools.islice(positionen, 0, options.maxnum)
+
+    msgs = []
+    for pos in positionen:
+        guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
+        batchnr = guidbase
+        msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
+               "menge": int(float(pos['menge_berechnet'])),
+               "artnr": pos['artnr'],
+               "batchnr": batchnr}
+        msgs.append(msg)
+
+    # send msges
+    qname = 'erp.ic-wms.warenzugang#100'
+    messaging.setup_queue(qname, durable=True)
+    for msg in msgs:
+        doc = messaging.empty_message('ic2wms_wareneingang',
+                                      audit_trail='import_warenzugang',
+                                      audit_info='Auftrag aus SoftM ISZ00')
+        doc.update(msg)
+
+        if options.debug:
+            print doc
+
+        # log file for replaying in case of errors
+        logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
+        nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+        nstring.write(logdata)
+        nstring.file.close()
+
+        # FIXME: gehört das nicht auch hinter ein 'if not dry-run:'?
+        messaging.publish(doc, qname)
+
+
+def main():
+    """main function - option parsing and calling of transfer_umlagerungen()."""
+
+    global options
+    parser = optparse.OptionParser()
+    parser.description = ('Uebernimmt Einlagerungsauftraege aus der Soft-Schnittstelle ISZ00 '
+                          +'(Wareneingang Lager 100) und erzeugt Warenzugangsmeldungen')
+    parser.set_usage('usage: %prog [options]')
+    parser.add_option('--log', default='/var/log/ic2wms_wareneingang.log',
+                      help='Wo sollen die Nachrichten protokolliert werden?')
+    parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+    parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+    parser.add_option('--maxnum', type='int',
+                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+
+    options, args = parser.parse_args()
+    if args:
+        parser.error("incorrect number of arguments")
+
+    transfer_umlagerungen()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
