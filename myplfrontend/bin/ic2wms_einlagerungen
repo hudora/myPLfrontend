@@ -27,6 +27,9 @@ import sys
 import time
 
 
+rowcounter = 0
+
+
 def display(msg):
     """Display messages based on command line options."""
     if options.debug or (not options.quiet):
@@ -44,12 +47,13 @@ def write_journal(doc):
 
 def transfer_umlagerungen():
     "Handles the transfer of data SoftM/ISA00 -> messages"
+    global rowcounter
+    
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
     messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
 
-    rowcounter = 0
     if rows:
         display("Processing Messages")
     for row in rows:
@@ -66,15 +70,19 @@ def transfer_umlagerungen():
             display("Maximum number of messages reached, exiting")
             sys.exit(0)
 
-        if options.debug:
-            display(komminr, kommiposnr, menge, satznr, artnr, lagernr)
-
         if menge < 1:
             msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
             cs.zwitscher.zwitscher(msg, username='mypl')
             display(msg)
         else:
             lock_handle = isk00.lock(satznr)
+            # We actually have a (small) race condition here, but duplicate messages are no problem
+            if not lock_handle:
+                # we couldn't lock the row, try next
+                if options.debug:
+                    print "couldn't lock the row", komminr
+                continue
+            
             doc = messaging.empty_message('ic2wms_einlagerungen',
                                           guid="%s-%s" % (komminr, kommiposnr),
                                           audit_trail='import_umlagerungen',

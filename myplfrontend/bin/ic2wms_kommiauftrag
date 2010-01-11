@@ -9,27 +9,24 @@ https://cybernetics.hudora.biz/intern/trac/browser/projects/cs/trunk/doc/messagi
 zum Nachrichtenformat.
 
 Created by Lars Ronge, Maximillian Dornseif on 2007-12-07, 2007-12-19.
-Rewritten by Maximillian Dornseif 2008-12, 2009-12.
-Copyright (c) 2007, 2008, 2009 HUDORA GmbH.
+Rewritten by Maximillian Dornseif 2008-12, 2010-01.
+Copyright (c) 2007-2010 HUDORA GmbH.
 """
 
-__revision__ = "$Revision$"
-
-
-# From http://superjared.com/entry/django-and-crontab-best-friends/
-from django.core.management import setup_environ
-import settings
-setup_environ(settings)
-
-from logistik.softm_shippment import SoftmItem, SoftmLieferung
+import cs.messaging as messaging
 import cs.zwitscher
 import datetime
 import husoftm.kunden
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
-import mypl.models
+import huTools.NetStringIO as NetStringIO
 import optparse
+import simplejson as json
 import sys
+import time
+
+
+rowcounter = 0
 
 
 def display(msg):
@@ -49,49 +46,40 @@ def write_journal(doc):
 
 def transfer_kommis():
     "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
-
+    global rowcounter
+    
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
-    if options.maxnum:
-        rows = rows[:options.maxnum]
+    messaging.setup_queue('erp.ic-wms.kommiauftrag#%d' % options.lager, durable=True)
 
+    if rows:
+        display("Processing Messages")
     for row in rows:
         komminr, auftragsnr, satznr, lagernr = row
+        display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
-        if options.komminr and komminr not in options.komminr:
+        if int(lagernr) != options.lager:
+            if options.debug:
+                print "wrong lager"
             continue
 
-        if options.auftragsnr and auftragsnr not in options.auftragsnr:
-            continue
-
-        if options.debug:
-            print komminr, auftragsnr, satznr, lagernr,
+        rowcounter += 1
+        if options.maxnum and (rowcounter > options.maxnum):
+            display("Maximum number of messages reached, exiting")
+            sys.exit(0)
 
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
 
         if not softmschein.liefer_date:
+            # Leider kann man in SoftM Aufträuge ohne Liefertermin erfassen ...
             betreuer = husoftm.kunden.get_kundenbetreuer(softmschein.warenempfaenger)
             msg = u'@%s: %s ohne Aniefertermin erfasst #error' % (betreuer, softmschein.auftragsnr)
-            zwitscher(msg, username='mypl')
             cs.zwitscher.zwitscher(msg, username='mypl')
             softmschein.liefer_date = datetime.date.today()
 
-        if str(softmschein.liefer_date) > options.maxdate:
-            if options.debug:
-                print "wrong date", komminr, repr(softmschein.liefer_date)
-            continue
-
-        if options.fixonly and softmschein.fixtermin == False:
-            if options.debug:
-                print "not a fixtermin", komminr
-            continue
-
-        if options.debug:
-            print "locking", row
         lock_handle = isa00.lock(komminr)
-        # We actually have a race condition here, but duplicate messages are no problem
-
+        # We actually have a (small) race condition here, but duplicate messages are no problem
         if not lock_handle:
             # we couldn't lock the row, try next
             if options.debug:
@@ -99,20 +87,24 @@ def transfer_kommis():
             continue
 
         # Datensatz ist gelockt, wir koennen damit arbeiten
-        doc = messaging.empty_message('mypl.import_umlagerungen/%s' % __revision__,
-                                      guid="%s-%s" % (komminr, satznr),
-                                      audit_trail='import_umlagerungen',
+        doc = messaging.empty_message('ic2wms_kommiauftrag',
+                                      guid="%s-%s-%s-%s" % (komminr, auftragsnr, satznr, lagernr),
+                                      audit_trail='ic2wms_kommiauftrag',
                                       audit_info='Auftrag aus SoftM')
         doc.update(dict(kommiauftragsnr=komminr,
                         anliefertermin=softmschein.anlieferdatum,
+                        prioritaet=7, # TODO: mit etwas realistischerem befuellen
+                        # anliefertermin_ab
+                        # versandtermin
+                        # versandtermin_ab
                         # fixtermin:    Wenn True: Zuspätlieferung kann erhebliche Kosten nach sich ziehen.
                         # gewicht:      Netto gewicht der Ware in Gramm
                         # volumen:      Netto Volumen der Ware in Liter
+                        kundennr=softmschein.warenempfaenger,
                         info_kunde=softmschein.auftragsnr_kunde,
                         auftragsnr=softmschein.auftragsnr,
                         kundenname=(' '.join([softmschein.name1, softmschein.name2,
                                               softmschein.name13])).strip(),
-                        kundennr=softmschein.warenempfaenger,
                         # addressprotocol
                         name1=softmschein.name1,
                         strasse=softmschein.strasse,
@@ -128,53 +120,38 @@ def transfer_kommis():
         # Add kommibelegpositionen to doc
         doc['positionen'] = []
         for position in softmschein.positionen:
-            doc['positionen'].append(dict(artnr=position.artnr,
-                                          auftrags_position=position.auftrags_position,
+            doc['positionen'].append(dict(menge=position.menge_komissionierbeleg,
+                                          artnr=position.artnr,
+                                          posnr=position.auftrags_position,
+                                          # text
+                                          # EAN
                                           setartikel=position.setartikel,
                                           kommissionierbeleg_position=position.kommissionierbeleg_position,
                                           kommissionierbelegnr=position.kommissionierbelegnr,
-                                          menge=position.menge_komissionierbeleg,
                                           satznummer=position.satznr))
 
-        # Berechnung logistischer Werte pyShipping/logistik.softm_shippment macht all das "heavy lifting"
-        lieferung = SoftmLieferung()
-
         if softmschein.fixtermin or softmschein.art == 'WA':
-            lieferung.fixtermin = True
             doc['fixtermin'] = True
-
-        lieferung.auftragsart = softmschein.art
-        lieferung.liefertermin = softmschein.anlieferdatum
-        lieferung.versandart = kommibeleg.versandart
-
-        for position in kommibeleg.positionen:
-            logisticpos = SoftmItem()
-            logisticpos.artnr = position.artnr
-            logisticpos.menge = position.menge_komissionierbeleg
-            lieferung.itemlist.append(logisticpos)
-
-        kommibeleg.versandtermin = lieferung.versandtermin
-        kommibeleg.gewicht = lieferung.gewicht
-        kommibeleg.volumen = lieferung.volumen
+            doc['prioritaet'] = 3
 
         if options.debug:
-            print doc
-        messaging.publish(doc, 'erp.cs-wms.kommiauftrag#%s' % lagernr)
+            display(doc)
 
         if not options.dry_run:
-            # delete enty in ISA00
-            isa00.delete(lock_handle)
-
-        if options.debug:
-            print "unlocking", row, kommibeleg
+            # log file for replaying in case of errors
+            write_journal(doc)
+            messaging.publish(doc, 'erp.ic-wms.kommiauftrag#%d' % options.lager)
+            messaging.publish(doc, 'log.ic-wms.kommiauftrag')
+            #isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
+
 
 def main():
     """main function - option parsing and calling of transfer_umlagerungen()."""
-
     global options
+    
     parser = optparse.OptionParser()
-    parser.description = ('Uebernimmt Kommibelege aus der Soft-Schnittstelle ISA00 und '
+    parser.description = ('Uebernimmt Kommibelege aus der SoftM-Schnittstelle ISA00 und '
                          + 'erzeugt Kommiauftragsmeldungen')
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int",
@@ -183,13 +160,13 @@ def main():
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
                       help='Run continuously forever')
-    parser.add_option('--sleep', type="int", default=47,
+    parser.add_option('--sleep', type="int", default=53,
                       help='Pause zwischen Durchlaeufen, wenn --continuous verwendet wird [%default s]')
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
-    parser.add_option('--maxnum', type='int',
-                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+    #parser.add_option('--maxnum', type='int',
+    #                  help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
     options, args = parser.parse_args()
     if args:

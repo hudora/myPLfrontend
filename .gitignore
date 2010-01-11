@@ -1,6 +1,7 @@
 build/
 pip-log.txt
 *~
+*.bak
 *.pyc
 src/
 generic_templates/
