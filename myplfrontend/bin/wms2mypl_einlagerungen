@@ -26,6 +26,7 @@ import optparse
 import signal
 import simplejson as json
 import sys
+import time
 
 
 process_messages = True
@@ -118,6 +119,7 @@ def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
                         product['pallet_height'])
 
     if msg:
+        msg = "%s/%s" % (guid, msg)
         cs.zwitscher.zwitscher(msg, username='mypl')
         display(msg.encode('utf-8', 'ignore'))
         return [] # this leaves a stale message
@@ -229,13 +231,16 @@ def main():
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
     display("waiting for messages ...")
-
+    
     # Loop while process_messages is True - could be set to False by signal handlers
+    last_requeue = 0
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
-        # Request non-acknowledged messages to be re-delivered
-        channel.basic_recover(requeue=True)
+        if time.time() - last_requeue > 3600:
+            # every 3600 seconds Request non-acknowledged messages to be re-delivered
+            channel.basic_recover(requeue=True)
+            last_requeue = time.time()
 
     channel.close()
     return 0

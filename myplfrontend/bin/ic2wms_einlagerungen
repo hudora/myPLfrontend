@@ -49,12 +49,12 @@ def transfer_umlagerungen():
     messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
 
     rowcounter = 0
-    for row in rows:
-        print row
+    if rows:
         display("Processing Messages")
+    for row in rows:
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
-
+        display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
         if int(lagernr) != options.lager:
             if options.debug:
                 print "wrong lager"
