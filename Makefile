@@ -36,7 +36,7 @@ runserver: dependencies
 	python manage.py runserver
 
 clean:
-	rm -Rf testenv build dist html test.db sloccount.sc pylint.out
+	rm -Rf pythonenv build dist html test.db sloccount.sc pylint.out
 	find . -name '*.pyc' -or -name '*.pyo' -delete
 
 .PHONY: test build clean install upload check statistics dependencies

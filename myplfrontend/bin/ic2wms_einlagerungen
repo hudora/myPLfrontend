@@ -19,6 +19,8 @@ import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
+import husoftm.warenzugangsschnittstelle
+import itertools
 import optparse
 import simplejson as json
 import sys
@@ -41,8 +43,7 @@ def write_journal(doc):
 
 
 def transfer_umlagerungen():
-    "Handeles the transfer of data SoftM/ISA00 -> messages"
-
+    "Handles the transfer of data SoftM/ISA00 -> messages"
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
@@ -111,7 +112,7 @@ def main():
                       help='Run continuously forever')
     parser.add_option('--sleep', type="int", default=47,
                       help='Pause zwischen Durchlaeufen, wenn --continuous verwendet wird [%default s]')
-    parser.add_option('--quiet', action='store_true', help='UEbliche Ausgaben unterdruecken')
+    parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
     parser.add_option('--maxnum', type='int',
