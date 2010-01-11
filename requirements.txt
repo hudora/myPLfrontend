@@ -8,5 +8,4 @@ huDjango
 pyJasper
 hudoratools
 cs>=0.10
-mypl
 -e git+http://github.com/hudora/huSoftM.git#egg=huSoftM
