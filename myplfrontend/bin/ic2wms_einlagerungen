@@ -20,7 +20,6 @@ import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import husoftm.warenzugangsschnittstelle
-import itertools
 import optparse
 import simplejson as json
 import sys
@@ -47,7 +46,8 @@ def transfer_umlagerungen():
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
-    messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
+    outqueuename = u"%s#%s" % (options.out_queue, options.lager)
+    messaging.setup_queue(outqueuename, durable=True)
 
     rowcounter = 0
     for row in rows:
@@ -90,7 +90,7 @@ def transfer_umlagerungen():
             if not options.dry_run:
                 # log file for replaying in case of errors
                 write_journal(doc)
-                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
+                messaging.publish(doc, outqueuename)
                 messaging.publish(doc, 'log.ic-wms.warenzugang')
                 isk00.delete(lock_handle)
             isk00.unlock(lock_handle)
@@ -117,6 +117,9 @@ def main():
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+    parser.add_option('--in', action='append', dest="in_queues",
+                      help='Queue to read from. This option can be used multiple times to read from different queues.')
+    parser.add_option('--out', default='erp.ic-wms.warenzugang', dest='out_queue', help='Queue to send messages to.')
 
     options, args = parser.parse_args()
     if args:

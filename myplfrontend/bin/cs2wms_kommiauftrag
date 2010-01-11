@@ -51,6 +51,9 @@ parser.add_option('--komminr', action='append', type='int',
                   help='Only transfer Kommibelege with <komminr>. Option can be used more than once.')
 parser.add_option('--auftragsnr', action='append', type='int',
                   help='Only transfer Kommibelege for <auftragsnr>. Option can be used more than once.')
+parser.add_option('--in', action='append', dest="in_queues",
+                  help='Queue to read from. This option can be used multiple times to read from different queues.')
+parser.add_option('--out', default='erp.cs-wms.kommiauftrag', dest='out_queue', help='Queue to send messages to.')
 
 
 options, args = parser.parse_args()
@@ -59,7 +62,7 @@ if args:
 
 
 def transfer_kommis():
-    "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
+    "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
 
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
@@ -170,7 +173,7 @@ def transfer_kommis():
 
         if options.debug:
             print doc
-        messaging.publish(doc, 'erp.cs-wms.kommiauftrag#%s' % lagernr)
+        messaging.publish(doc, '%s#%s' % (options.out, lagernr))
 
         if not options.dry_run:
             # delete enty in ISA00

@@ -32,6 +32,7 @@ import itertools
 import optparse
 import simplejson as json
 import sys
+import time
 
 #from myplfrontend.bin.ic2wms_einlagerungen import display, write_journal
 
@@ -70,14 +71,14 @@ def transfer_zugaenge():
                "menge": int(float(pos['menge_berechnet'])),
                "artnr": pos['artnr'],
                "batchnr": batchnr,
-               referenzen={'bestellnr': pos['bestellnr'],
-                           'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
-                           'bestellposnr': pos['bestellpos']}}
+               "referenzen": {'bestellnr': pos['bestellnr'],
+                              'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
+                              'bestellposnr': pos['bestellpos']}}
         msgs.append(msg)
 
     # send msges
-    qname = 'erp.ic-wms.warenzugang#100'
-    messaging.setup_queue(qname, durable=True)
+    outqueuename = '%s#100' % options.out_queue
+    messaging.setup_queue(outqueuename, durable=True)
     for msg in msgs:
         doc = messaging.empty_message('ic2wms_wareneingang',
                                       audit_trail='import_warenzugang',
@@ -90,7 +91,7 @@ def transfer_zugaenge():
         if not options.dry_run:
             # log file for replaying in case of errors
             write_journal(doc)
-            messaging.publish(doc, qname)
+            messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.ic-wms.warenzugang')
 
 
@@ -113,6 +114,9 @@ def main():
     parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+    parser.add_option('--in', action='append', dest="in_queues",
+                      help='Queue to read from. This option can be used multiple times to read from different queues.')
+    parser.add_option('--out', default='erp.ic-wms.warenzugang', dest='out_queue', help='Queue to send messages to.')
 
     options, args = parser.parse_args()
     if args:
@@ -120,7 +124,7 @@ def main():
 
     display("Starting %r ..." % sys.argv[0])
     while True:
-        transfer_umlagerungen()
+        transfer_zugaenge()
         if not options.continuous:
             break
         time.sleep(options.sleep)

@@ -215,16 +215,23 @@ def main():
     parser.add_option('--no-movements', action='store_true', help='Palleten NICHT von EINLAG weglagern.')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
+    parser.add_option('--in', dest="in_queues", default='erp.ic-wms.warenzugang',
+                      help='Queue to read from. This option can be used multiple times to read from different queues.')
+    parser.add_option('--out', default='bisherwirdhierscheinbarnurgeloggt...', dest='out_queue', help='Queue to send messages to.')
 
     options, args = parser.parse_args()
     if args:
         parser.error("incorrect number of arguments")
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
+    #if not options.in_queues:
+        # default values for appendable options is buggy, see http://bugs.python.org/issue5088
+        # so provide default values at this point:
+        #options.in_queues = ['erp.ic-wms.warenzugang']
 
-    channel = messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
-    consumer_tag = channel.basic_consume(queue='erp.ic-wms.warenzugang#%d' % options.lager,
-                                         callback=handle_message)
+    inqueuename = "%s#%s" % (in_queues, options.lager)
+    channel = messaging.setup_queue(inqueuename, durable=True)
+    consumer_tag = channel.basic_consume(queue=inqueuename, callback=handle_message)
 
     # catch Signals
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
