@@ -1,0 +1,179 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""
+Uebernimmt Umlagerungsauftraege an Lager 100 aus der Soft-Schnittstelle ISK00 und lagert diese im
+'myPL ein (EINLAG). Erstellt ausserdem eine Warenbewegung im myPL an einen geeigneten Platz und
+erzeugt eine Palettenfahne.
+
+http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Kommunikation.
+
+Zusätzlich werden Warenzugangsmeldungen nach
+https://cybernetics.hudora.biz/intern/trac/browser/projects/cs/trunk/doc/messaging_ic-wms.rst erzeugt.
+
+Created by Lars Ronge on 2007-12-12.
+Rewritten by Maximillian Dornseif 2008-12
+Copyright (c) 2007, 2008 HUDORA GmbH.
+"""
+
+__revision__ = "$Revision: 7323 $"
+
+# From http://superjared.com/entry/django-and-crontab-best-friends/
+from django.core.management import setup_environ
+import settings
+setup_environ(settings)
+
+from husoftm.lagerschnittstelle import ISK00
+from husoftm.lieferscheine import kbpos2artnr
+from mypl.kernel import Kerneladapter
+from mypl.utils import split_quantities
+from optparse import OptionParser
+from cs.zwitscher import zwitscher
+import cs.messaging as messaging
+import mypl.models
+import produktpass.models
+import sys
+
+
+parser = OptionParser(version=True)
+parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
+                                                   mypl.models.__revision__.strip('$Revision: '))
+parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und lagert diese im '
+                     + 'myPL ein (EINLAG). Erstellt ausserdem eine Umlagerung an einen geeigneten Platz und '
+                     + 'erzeugt eine Palettenfahne')
+parser.set_usage('usage: %prog [options]')
+parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
+parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
+parser.add_option('--maxnum', type='int',
+                  help='Maximum number of rows to trasfer before exiting [defaut: unlimited]')
+
+options, args = parser.parse_args()
+if args:
+    parser.error("incorrect number of arguments")
+
+
+def transfer_umlagerungen():
+    "Handles the transfer of data SoftM/ISK00 - kernelE"
+    
+    chan = messaging.setup_queue('erp.cs-wms.warenzugang', durable=True)
+    
+    isk00 = ISK00()
+    isk00.clean_stale_locks()
+    rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
+    
+    if options.maxnum:
+        rows = rows[:options.maxnum]
+    
+    for row in rows:
+        komminr, kommiposition, menge, satznr = row
+        
+        if options.debug:
+            print row
+        
+        muis = _umlagerung_to_unit(satznr, komminr, kommiposition, menge, isk00, chan)
+        _move_units_to_good_location(muis)
+
+
+def _move_units_to_good_location(muis):
+    """Moves units to a good location in the warehouse and prints the Palettenfahne
+    and the movement-note.
+    """
+    
+    kernel = Kerneladapter()
+    movementids = []
+    for mui in muis:
+        movementids.append((kernel.init_movement_to_good_location(mui), mui))
+    for movement_id, mui in movementids:
+        if movement_id:
+            mypl.models.Movement(movement_id).output_on_printer(printer="DruckerTesler")
+        else:
+            zwitscher('%s: Kein passender Lagerplatz. Palette verbleibt auf EINLAG #warning' % mui,
+                      username='mypl')
+
+
+def _umlagerung_to_unit(satznr, komminr, kommipos, menge, isk00, chan):
+    """Converts a Umlagerungsposition to an Unit in the Kernel. Returns MUIs generated."""
+    
+    lock_handle = isk00.lock(satznr)
+    
+    if options.debug:
+        print satznr, komminr, kommipos, menge
+    
+    muis = []
+    artnr = kbpos2artnr(komminr, kommipos)
+    if menge < 1:
+        if options.debug:
+            msg = 'Umlagerung %s hat Positionen ohne Menge (0) fuer %s - interessant ... #warn' % (komminr, artnr)
+            print msg
+    else:
+        doc = messaging.empty_message('mypl.import_umlagerungen/%s' % __revision__,
+                                      guid="%s-%s" % (komminr, kommiposition),
+                                      audit_trail='import_umlagerungen',
+                                      audit_info='Auftrag aus SoftM',
+                                      batchnr=komminr, menge=menge, artnr=artnr)
+        messaging.publish(doc, 'erp.cs-wms.warenzugang')
+        
+        # TODO: remove
+        open('/tmp/warenzugang.py', 'w').write(repr(doc))
+        
+        ####
+        #### Der folgende Code würde in Zukunft in einem Programm, dass aus erp.cs-wms.warenzugang liesst
+        #### ausgeführt.
+        ####
+        
+        products = produktpass.models.Product.objects.filter(artnr=artnr)
+        if not products:
+            msg = u'%s: Kein Artikelpass. Einlagerung abgebrochen. Übernahme steht #error' % artnr
+            print msg.encode('utf-8', 'ignore')
+            zwitscher(msg, username='mypl')
+            return [] # this leaves a stale lock
+        product = products[0]
+        if not product.palettenfaktor:
+            msg = u'%s: Kein Palettenfaktor. Einlagerung abgebrochen. Übernahme steht #error' % artnr
+            print msg.encode('utf-8', 'ignore')
+            zwitscher(msg, username='mypl')
+            return [] # this leaves a stale lock
+
+        if not product.pallet_height:
+            msg = u'%s: Palettenhöhe unbekannt. Einlagerung abgebrochen. Übernahme steht #error' % artnr
+            print msg.encode('utf-8', 'ignore')
+            zwitscher(msg, username='mypl')
+            return [] # this leaves a stale lock
+        elif product.pallet_height > 2100:
+            msg = u'%s: Palettenhöhe (%s) zu höch. Lagerplatzoptimierung fällt aus #warn' % (artnr,
+                            product.pallet_height)
+            print msg.encode('utf-8', 'ignore')
+            zwitscher(msg, username='mypl')
+            return [] # this leaves a stale lock
+        else:
+            height = product.pallet_height
+        
+        uid = "%s-%s" % (komminr, kommipos)
+        kernel = Kerneladapter()
+        elements = [(quantity, artnr, height) for quantity in split_quantities(menge, product.palettenfaktor)]
+        if options.debug:
+            print uid, elements
+        # PUT /einlagerung/{uid}
+        # {'units': [{quantity, artnr, height}], }
+        muis = kernel.store_at_location_multi(uid, "EINLAG", elements, {'komminr': str(komminr),
+                                                                        'source': 'umlagerung'})
+        
+        ####
+        #### Hier ist der Abschnitt für den Message receiver zuende.
+        ####
+    
+    if not options.dry_run:
+        isk00.delete(lock_handle)
+    isk00.unlock(lock_handle)
+    if options.debug:
+        print muis
+    return muis
+
+
+def main():
+    """main function - does all whe work besides option parsing."""
+    transfer_umlagerungen()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

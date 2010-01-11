@@ -9,30 +9,28 @@ Rewritten by Maximillian Dornseif 2008-12.
 Copyright (c) 2007, 2008 HUDORA GmbH.
 """
 
-__revision__ = "$Revision$"
+__revision__ = "$Revision: 7323 $"
 
-raise RuntimeError("this code needs serious fixing")
 
 # From http://superjared.com/entry/django-and-crontab-best-friends/
 from django.core.management import setup_environ
 import settings
 setup_environ(settings)
 
-import datetime
-import husoftm.lieferscheine
-import sys
-
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from husoftm.lagerschnittstelle import ISA00
 from logistik.softm_shippment import SoftmItem, SoftmLieferung
-from optparse import OptionParser
-import cs.zwitscher
-
-import mypl.models
-from mypl.models import Lieferschein, LieferscheinPosition
 from mypl.kernel import Kerneladapter
+from mypl.models import Lieferschein, LieferscheinPosition
+from optparse import OptionParser
+import cs.messaging as messaging
+import cs.zwitscher
+import datetime
+import husoftm.lieferscheine
+import mypl.models
+import sys
 
 parser = OptionParser(version=True)
 parser.version = "%%prog %s (mypl.models %s)" % (__revision__.strip('$Revision: '),
@@ -54,7 +52,7 @@ parser.add_option('--komminr', action='append', type='int',
 parser.add_option('--auftragsnr', action='append', type='int',
                   help='Only transfer Kommibelege for <auftragsnr>. Option can be used more than once.')
 
-
+                      
 options, args = parser.parse_args()
 if args:
     parser.error("incorrect number of arguments")
@@ -62,39 +60,41 @@ if args:
 
 def transfer_kommis():
     "Handeles the transfer of data SoftM/ISA00 -> Django/Lieferschein -> kernelE/provisioningpipeline"
-
-    _import_kommi_from_softm()
+    
+    chan = messaging.setup_queue('erp.cs-wms.kommiauftrag', durable=True)
+    
+    _import_kommi_from_softm(chan)
     # todo: update calculated logistics value like total_weight
     _update_kommi_fields()
     _export_kommi_to_kernel()
+    
 
-
-def _import_kommi_from_softm():
-    """Pulls Delivery Notes From SoftM (ISA00) and writes them into the django database."""
-
+def _import_kommi_from_softm(chan):
+    """Pulls Delivery Notes from SoftM (ISA00) and writes them into the django database."""
+    
     isa00 = ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
     if options.maxnum:
         rows = rows[:options.maxnum]
-
+    
     for row in rows:
         komminr, auftragsnr, satznr, lagernr = row
-
+        
         if int(lagernr) != 100:
             if options.debug:
                 print "wrong warehouse", komminr, lagernr
             continue
-
+        
         if options.komminr and komminr not in options.komminr:
             continue
-
+        
         if options.auftragsnr and auftragsnr not in options.auftragsnr:
             continue
-
+        
         if options.debug:
             print komminr, auftragsnr, satznr, lagernr,
-
+        
         try:
             softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
         except ValueError, msg:
@@ -103,60 +103,90 @@ def _import_kommi_from_softm():
             print msg
             cs.zwitscher.zwitscher(msg, username='mypl')
             continue
-
+        
         if not softmschein.liefer_date:
             errormsg = "Fehlendes Lieferdatum"
             msg = ("Kommibeleg %s fehlerhaft (Auftrag %s, ISA00-Satz %s): %s"
                    % (komminr, auftragsnr, satznr, errormsg))
             cs.zwitscher.zwitscher(msg, username='mypl')
             softmschein.liefer_date = datetime.date.today()
+            # TODO: direkt stornieren
         if str(softmschein.liefer_date) > options.maxdate:
             if options.debug:
                 print "wrong date", komminr, softmschein.liefer_date
             continue
-
+        
         if options.fixonly and softmschein.fixtermin == False:
             if options.debug:
                 print "not a fixtermin", komminr
             continue
-
+        
         if options.debug:
             print "locking", row
         lock_handle = isa00.lock(komminr)
-
+        
         if not lock_handle:
             # we couldn't lock the row, try next
             if options.debug:
                 print "couldn't lock the row", komminr
             continue
-
+        
         # Datensatz ist gelockt, wir koennen damit arbeiten
+        
+        doc = messaging.empty_message('mypl.import_umlagerungen/%s' % __revision__,
+                                      guid="%s-%s" % (komminr, kommiposition),
+                                      audit_trail='import_umlagerungen',
+                                      audit_info='Auftrag aus SoftM',
+                                      kommiauftragsnr=komminr,
+                                      liefertermin=softmschein.anlieferdatum,
+                                      # liefertermin:	Termin, an dem die Ware spätestens beim Kunden sein muß
+                                      # fixtermin:	Wenn True: Zuspätlieferung kann erhebliche Kosten nach sich ziehen.
+                                      # gewicht:	Netto gewicht der Ware in Gramm
+                                      # volumen:	Netto Volumen der Ware in Liter
+                                      info_kunde=softmschein.auftragsnr_kunde,
+                                      auftragsnr=softmschein.auftragsnr,
+                                      kundenname=' '.join([softmschein.name1, softmschein.name2, softmschein.name13]),
+                                      kundennr=softmschein.warenempfaenger,
+                                      name1=softmschein.name1,
+                                      name2=softmschein.name2,
+                                      name3=softmschein.name3,
+                                      strasse=softmschein.strasse,
+                                      land=softmschein.land,
+                                      plz=softmschein.plz,
+                                      ort=softmschein.ort,
+                                     )
+        messaging.publish(doc, 'erp.cs-wms.kommiauftrag')
+        
+        # TODO: remove
+        open('/tmp/kommiauftrag.py', 'w').write(repr(doc))
+        
         # TODO: this takes 0.5 seconds - why?
+        # md: no index?
         if Lieferschein.objects.filter(kommissionierbelegnr=komminr).count() > 0:
             msg = ("Kommibeleg %s existiert bereits in Django (ISA00-Satz %s)") % (komminr,
                                                                                    satznr)
             print msg
             cs.zwitscher.zwitscher(msg, username='mypl')
             continue # thi leaves a stale lock
-
+        
         # generate Lieferschein object in Django
         kommibeleg = Lieferschein()
         _softm2django(komminr, softmschein)
         if not options.dry_run:
             # delete enty in ISA00
             isa00.delete(lock_handle)
-
+        
         if options.debug:
             print "unlocking", row, kommibeleg
         isa00.unlock(lock_handle)
-
+    
 
 @transaction.commit_on_success # this SHOULd ensure that we never hafe a half-saved record
 def _softm2django(komminr, softmschein):
     """Gets Delivery-Note from SoftM by Delivery-Note-No."""
-
+    
     kommibeleg = Lieferschein()
-
+    
     kommibeleg.kommissionierbelegnr = komminr
     kommibeleg.name1 = softmschein.name1
     kommibeleg.name2 = softmschein.name2
@@ -180,13 +210,13 @@ def _softm2django(komminr, softmschein):
 
     if not kommibeleg.liefertermin:
         kommibeleg.liefertermin = datetime.datetime.now()
-
+    
     if not options.dry_run:
         kommibeleg.save()
         LogEntry.objects.log_action(0, ContentType.objects.get_for_model(Lieferschein).id,
                                     kommibeleg.id, unicode(kommibeleg), ADDITION,
-                                    'Kommibeleg aus SoftM gelesen.')
-
+                                    'Kommibeleg aus SoftM gelesen.') 
+    
     for position in softmschein.positionen:
         position_object = LieferscheinPosition()
         position_object.artnr = position.artnr
@@ -198,26 +228,26 @@ def _softm2django(komminr, softmschein):
         position_object.menge = position.menge
         position_object.menge_offen = position.menge_offen
         position_object.satznummer = position.satznr
-
+        
         if not options.dry_run:
             kommibeleg.lieferscheinposition_set.add(position_object)
-
+    
     # Non-Standard Fields
     kommibeleg.versandart = softmschein.versandart
     kommibeleg.fixtermin = softmschein.fixtermin
     kommibeleg.auftragsart = softmschein.art
     kommibeleg.total_weight = 0
     kommibeleg.total_volume = 0
-
+    
     kommibeleg.status = 'new'
     if not options.dry_run:
         kommibeleg.save()
         LogEntry.objects.log_action(0, ContentType.objects.get_for_model(Lieferschein).id,
                                     kommibeleg.id, unicode(kommibeleg), CHANGE,
-                                    '%d Positionen aus SoftM übernommen.' % len(softmschein.positionen))
-
+                                    '%d Positionen aus SoftM übernommen.' % len(softmschein.positionen)) 
+    
     return kommibeleg
-
+    
 
 def _update_kommi_fields():
     """Updates fields fo not-yet-transfered kommibelege with additional information."""
@@ -228,16 +258,16 @@ def _update_kommi_fields():
             print "updating", kommibeleg
         # Berechnung logistischer Werte pyShipping/logistik.softm_shippment macht all das "heavy lifting"
         lieferung = SoftmLieferung()
-
+        
         if softmschein.fixtermin or softmschein.art == 'WA':
             lieferung.fixtermin = True
-
+        
         lieferung.auftragsart = softmschein.art
         if hasattr(softmschein, "anliefertermin"):
             print "softmschein.anliefertermin", softmschein.anliefertermin
             lieferung.liefertermin = softmschein.anliefertermin
         else:
-            print "kommibeleg.liefer_date", kommibeleg.liefer_date
+            print "kommibeleg.liefer_date",  kommibeleg.liefer_date
             lieferung.liefertermin = kommibeleg.liefer_date
         lieferung.versandart = kommibeleg.versandart
 
@@ -246,7 +276,7 @@ def _update_kommi_fields():
             logisticpos.artnr = position.artnr
             logisticpos.menge = position.menge_komissionierbeleg
             lieferung.itemlist.append(logisticpos)
-
+        
         # TODO: calculate versanddatum
         #  = lieferung.versanddatum
         kommibeleg.kep = lieferung.kep
@@ -266,7 +296,7 @@ def _update_kommi_fields():
         # transportzeit
         kommibeleg.status = 'ready_for_kernel'
         kommibeleg.save()
-
+    
 
 def _export_kommi_to_kernel():
     """Pushes unprocessed Lieferschein objects into kernel."""
@@ -275,7 +305,7 @@ def _export_kommi_to_kernel():
             print "transfering to kernel", kommibeleg
         komminr = kommibeleg.kommissionierbelegnr
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
-
+        
         Kerneladapter().insert_pipeline(
             kommibeleg.kommissionierbelegnr,
             _get_orderlines_for_kernel(kommibeleg),
@@ -307,8 +337,8 @@ def _export_kommi_to_kernel():
         kommibeleg.save()
         LogEntry.objects.log_action(0, ContentType.objects.get_for_model(Lieferschein).id,
                                     kommibeleg.id, unicode(kommibeleg), CHANGE,
-                                    'An den Kernel übergeben.')
-
+                                    'An den Kernel übergeben.') 
+    
 
 def _get_orderlines_for_kernel(kommibeleg):
     """Gets the orderline-tuple to submit it via insert_pipeline"""
@@ -318,7 +348,7 @@ def _get_orderlines_for_kernel(kommibeleg):
                       "gewicht": position.weight_to_pick()}
         orderlines.append((position.menge_komissionierbeleg, position.artnr, pos_params))
     return orderlines
-
+    
 
 def main():
     #import cProfile

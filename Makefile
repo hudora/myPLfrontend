@@ -1,5 +1,5 @@
 # setting the PATH seems only to work in GNUmake not in BSDmake
-PATH := ./testenv/bin:$(PATH)
+PATH := ./pythonenv/bin:$(PATH)
 
 default: dependencies check test
 
@@ -15,8 +15,8 @@ test:
 	python manage.py test --verbosity=1 myplfrontend
 
 dependencies:
-	virtualenv testenv
-	pip -q install -E testenv -r requirements.txt
+	virtualenv pythonenv
+	pip -v install -E pythonenv -r requirements.txt
 	# the following line is needed for Django applications
 	sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
 

@@ -1,11 +1,12 @@
 -f https://cybernetics.hudora.biz/nonpublic/eggs/
-Django==1.0.2-final
+Django
 python-memcached
 couchdb
 simplejson
 huTools>=0.40
 huDjango
+pyJasper
 hudoratools
-cs>=0.09p1
+cs>=0.10
 mypl
 -e git+http://github.com/hudora/huSoftM.git#egg=huSoftM
