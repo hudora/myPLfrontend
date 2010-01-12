@@ -70,38 +70,34 @@ def transfer_umlagerungen():
             display("Maximum number of messages reached, exiting")
             sys.exit(0)
 
-        if menge < 1:
-            msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
-            cs.zwitscher.zwitscher(msg, username='mypl')
-            display(msg)
-        else:
-            lock_handle = isk00.lock(satznr)
-            # We actually have a (small) race condition here, but duplicate messages are no problem
-            if not lock_handle:
-                # we couldn't lock the row, try next
-                if options.debug:
-                    print "couldn't lock the row", komminr
-                continue
-            
-            doc = messaging.empty_message('ic2wms_einlagerungen',
-                                          guid="%s-%s" % (komminr, kommiposnr),
-                                          audit_trail='import_umlagerungen',
-                                          audit_info='Auftrag aus SoftM')
-            doc.update(dict(batchnr=komminr,
-                            menge=menge,
-                            artnr=artnr,
-                            referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
-
+        lock_handle = isk00.lock(satznr)
+        # We actually have a (small) race condition here, but duplicate messages are no problem
+        if not lock_handle:
+            # we couldn't lock the row, try next
             if options.debug:
-                display(doc)
+                print "couldn't lock the row", komminr
+            continue
+            
+        doc = messaging.empty_message('ic2wms_einlagerungen',
+                                      guid="%s-%s" % (komminr, kommiposnr),
+                                      audit_trail='import_umlagerungen',
+                                      audit_info='Auftrag aus SoftM')
+        doc.update(dict(batchnr=komminr,
+                        menge=menge,
+                        artnr=artnr,
+                        referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
 
-            if not options.dry_run:
-                # log file for replaying in case of errors
-                write_journal(doc)
+        if options.debug:
+            display(doc)
+
+        if not options.dry_run:
+            # log file for replaying in case of errors
+            write_journal(doc)
+            if menge > 0:
                 messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
                 messaging.publish(doc, 'log.ic-wms.warenzugang')
-                isk00.delete(lock_handle)
-            isk00.unlock(lock_handle)
+            isk00.delete(lock_handle)
+        isk00.unlock(lock_handle)
 
 
 def main():
