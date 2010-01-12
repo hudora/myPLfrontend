@@ -205,6 +205,9 @@ def main():
                          + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten'
                          + 'Platz und  erzeugt eine Palettenfahne.')
     parser.set_usage('usage: %prog [options]')
+    parser.add_option('--in', dest="in_queues", action='append',
+                      help='Name der Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
+                      +'angegeben, wird aus mehreren Queues gelesen. Beispiel --in=erp.ic-wms.warenzugang.')
     parser.add_option('--lager', type="int",
                       help='Lager, das bearbeitet werden soll')
     parser.add_option('--log', default='/var/log/wms2mypl_einlagerungen.log',
@@ -215,9 +218,6 @@ def main():
     parser.add_option('--no-movements', action='store_true', help='Palleten NICHT von EINLAG weglagern.')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
-    parser.add_option('--in', dest="in_queues", default='erp.ic-wms.warenzugang',
-                      help='Queue to read from. This option can be used multiple times to read from different queues.')
-    parser.add_option('--out', default='bisherwirdhierscheinbarnurgeloggt...', dest='out_queue', help='Queue to send messages to.')
 
     options, args = parser.parse_args()
     if args:
