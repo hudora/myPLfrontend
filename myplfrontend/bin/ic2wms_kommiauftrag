@@ -51,7 +51,9 @@ def transfer_kommis():
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
-    messaging.setup_queue('erp.ic-wms.kommiauftrag#%d' % options.lager, durable=True)
+
+    outqueuename = u"%s#%s" % (options.out_queue, options.lager)
+    messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
         display("Processing Messages")
@@ -140,7 +142,7 @@ def transfer_kommis():
         if not options.dry_run:
             # log file for replaying in case of errors
             write_journal(doc)
-            messaging.publish(doc, 'erp.ic-wms.kommiauftrag#%d' % options.lager)
+            messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.ic-wms.kommiauftrag')
             #isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
@@ -154,8 +156,8 @@ def main():
     parser.description = ('Uebernimmt Kommibelege aus der SoftM-Schnittstelle ISA00 und '
                          + 'erzeugt Kommiauftragsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int",
-                      help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
+    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_kommiauftrag.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
@@ -173,6 +175,8 @@ def main():
         parser.error("incorrect number of arguments")
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
+    if not options.out_queue:
+        parser.error("'--out' nicht gesetzt")
 
     display("Starting ...")
     while True:

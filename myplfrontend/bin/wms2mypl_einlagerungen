@@ -192,12 +192,14 @@ def cancel_processing():
     process_messages = False
     display("Exiting")
     # Tell the channel you dont want to consume anymore
-    channel.basic_cancel(consumer_tag)
+    for consumer_tag in consumer_tags:
+        channel.basic_cancel(consumer_tag)
 
 
 def main():
     """Setup message consuming."""
-    global channel, consumer_tag, options
+    global channel, consumer_tags, options
+    consumer_tags = []
 
     parser = optparse.OptionParser()
     parser.version = "%%prog"
@@ -205,11 +207,10 @@ def main():
                          + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten'
                          + 'Platz und  erzeugt eine Palettenfahne.')
     parser.set_usage('usage: %prog [options]')
+    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
     parser.add_option('--in', dest="in_queues", action='append',
                       help='Name der Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
                       +'angegeben, wird aus mehreren Queues gelesen. Beispiel --in=erp.ic-wms.warenzugang.')
-    parser.add_option('--lager', type="int",
-                      help='Lager, das bearbeitet werden soll')
     parser.add_option('--log', default='/var/log/wms2mypl_einlagerungen.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
@@ -224,21 +225,20 @@ def main():
         parser.error("incorrect number of arguments")
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
-    #if not options.in_queues:
-        # default values for appendable options is buggy, see http://bugs.python.org/issue5088
-        # so provide default values at this point:
-        #options.in_queues = ['erp.ic-wms.warenzugang']
+    if not options.in_queues:
+        parser.error("'--in' nicht gesetzt")
 
-    inqueuename = "%s#%s" % (in_queues, options.lager)
-    channel = messaging.setup_queue(inqueuename, durable=True)
-    consumer_tag = channel.basic_consume(queue=inqueuename, callback=handle_message)
+    for qname in options.in_queues:
+        inqueuename = "%s#%s" % (qname, options.lager)
+        channel = messaging.setup_queue(inqueuename, durable=True)
+        consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
     # catch Signals
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
     display("waiting for messages ...")
-    
+
     # Loop while process_messages is True - could be set to False by signal handlers
     last_requeue = 0
     while process_messages:
