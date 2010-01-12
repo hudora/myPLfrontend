@@ -142,7 +142,7 @@ def transfer_kommis(queuename):
             write_journal(doc)
             messaging.publish(doc, queuename)
             messaging.publish(doc, 'log.%s' % queuename)
-            #isa00.delete(lock_handle)
+            isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
 
 
