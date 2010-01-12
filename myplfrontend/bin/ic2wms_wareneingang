@@ -52,11 +52,12 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_zugaenge():
+def transfer_zugaenge(lager):
     "Handles the transfer of data SoftM/ISZ00 -> messages"
 
-    if options.lager != 100:
-        raise RuntimeError("Not impl yet") # TODO das muss noch aus den Bestellungen rausgefummelt werden
+    if lager != 100:
+        # TODO das muss noch aus den Bestellungen rausgefummelt werden
+        raise RuntimeError("Not impl yet")
 
     # Hole alle Warenzugangspositionen aus der Schnittstelle
     zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
@@ -80,7 +81,7 @@ def transfer_zugaenge():
         msgs.append(msg)
 
     # send msges
-    outqueuename = '%s#%s' % (options.out_queue, options.lager)
+    outqueuename = '%s#%s' % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
     for msg in msgs:
         doc = messaging.empty_message('ic2wms_wareneingang',
@@ -99,14 +100,14 @@ def transfer_zugaenge():
 
 
 def main():
-    """main function - option parsing and calling of transfer_umlagerungen()."""
+    """main function - option parsing and calling of transfer_zugaenge()."""
 
     global options
     parser = optparse.OptionParser()
     parser.description = ('Uebernimmt Einlagerungsauftraege aus der Soft-Schnittstelle ISZ00 '
                           +' und erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_wareneingang.log',
                       help='Wo sollen die Nachrichten protokolliert werden?')
@@ -130,11 +131,11 @@ def main():
 
     display("Starting %r ..." % sys.argv[0])
     while True:
-        transfer_zugaenge()
+        for lager in options.lager:
+            transfer_zugaenge(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)
-    transfer_zugaenge()
     return 0
 
 

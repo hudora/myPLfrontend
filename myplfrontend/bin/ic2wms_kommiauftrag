@@ -44,7 +44,7 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_kommis():
+def transfer_kommis(lager):
     "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
     
@@ -52,7 +52,7 @@ def transfer_kommis():
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
 
-    outqueuename = u"%s#%s" % (options.out_queue, options.lager)
+    outqueuename = u"%s#%s" % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
@@ -61,7 +61,7 @@ def transfer_kommis():
         komminr, auftragsnr, satznr, lagernr = row
         display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
-        if int(lagernr) != options.lager:
+        if int(lagernr) != lager:
             if options.debug:
                 print "wrong lager"
             continue
@@ -149,14 +149,14 @@ def transfer_kommis():
 
 
 def main():
-    """main function - option parsing and calling of transfer_umlagerungen()."""
+    """main function - option parsing and calling of transfer_kommis()."""
     global options
     
     parser = optparse.OptionParser()
     parser.description = ('Uebernimmt Kommibelege aus der SoftM-Schnittstelle ISA00 und '
                          + 'erzeugt Kommiauftragsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_kommiauftrag.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
@@ -180,7 +180,8 @@ def main():
 
     display("Starting ...")
     while True:
-        transfer_kommis()
+        for lager in options.lager:
+            transfer_kommis(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)

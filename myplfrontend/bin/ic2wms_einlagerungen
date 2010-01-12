@@ -44,14 +44,15 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_umlagerungen():
+def transfer_umlagerungen(lager):
     "Handles the transfer of data SoftM/ISA00 -> messages"
     global rowcounter
     
+    # FIXME: muss jetzt nicht zusaetzlich noch das Lager abgefragt werden, s.u.
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
-    outqueuename = u"%s#%s" % (options.out_queue, options.lager)
+    outqueuename = u"%s#%s" % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
@@ -60,7 +61,9 @@ def transfer_umlagerungen():
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
         display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
-        if int(lagernr) != options.lager:
+
+        # FIXME: woher weiss kbpos2artnr_zugangslager denn, welches lager das richtige ist?
+        if int(lagernr) != lager:
             if options.debug:
                 print "wrong lager"
             continue
@@ -108,7 +111,7 @@ def main():
     parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und '
                          + 'erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.\nEg.: --out=erp.ic-wms.warenzugang')
     parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
@@ -132,7 +135,8 @@ def main():
 
     display("Starting ...")
     while True:
-        transfer_umlagerungen()
+        for lager in options.lager:
+            transfer_umlagerungen(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)
