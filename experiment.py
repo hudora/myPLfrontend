@@ -3,8 +3,8 @@ from xml.etree import ElementTree
 
 
 def dict2xml(dict, xml = ''):
-    for key,value in dict.iteritems():
-        exec 'content = '+ {'str': 'value', 'dict': 'dict2xml(value)'}[type(value).__name__]
+    for key, value in dict.iteritems():
+        exec('content = '+ {'str': 'value', 'dict': 'dict2xml(value)'}[type(value).__name__])
         xml += '<%s>%s</%s>' % (key, str(content), key)
     return xml
     
@@ -14,11 +14,11 @@ listnames = {'positionen': 'position',
              'versandeinweisungen': 'versandeinweisung'}
 
 def _ConvertDictToXmlRecurse(parent, dictitem):
-    assert type(dictitem) is not type([])
+    assert not isinstance(dictitem, type([]))
 
     if isinstance(dictitem, dict):
         for (tag, child) in dictitem.iteritems():
-            if type(child) is type([]):
+            if isinstance(child, type([])):
                 # iterate through the array and convert
                 listelem = ElementTree.Element(tag)
                 parent.append(listelem)
