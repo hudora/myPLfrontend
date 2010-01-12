@@ -93,8 +93,10 @@ def transfer_umlagerungen():
             # log file for replaying in case of errors
             write_journal(doc)
             if menge > 0:
-                messaging.publish(doc, queuename)
-                messaging.publish(doc, 'log.%s' % queuename)
+                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
+                messaging.publish(doc, 'log.ic-wms.warenzugang')
+            else:
+                display("loesche position mit leerer menge")
             isk00.delete(lock_handle)
         isk00.unlock(lock_handle)
 
@@ -127,7 +129,7 @@ def main():
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
 
-    display("Starting ...")
+    display("Starting with oputput to %s..." % ('erp.ic-wms.warenzugang#%d' % options.lager))
     while True:
         transfer_umlagerungen()
         if not options.continuous:
