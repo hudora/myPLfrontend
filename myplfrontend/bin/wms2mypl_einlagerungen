@@ -222,8 +222,8 @@ def main():
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
 
-    channel = messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
-    consumer_tag = channel.basic_consume(queue='erp.ic-wms.warenzugang#%d' % options.lager,
+    channel = messaging.setup_queue('ic2wms.warenzugang#%d' % options.lager, durable=True)
+    consumer_tag = channel.basic_consume(queue='ic2wms.warenzugang#%d' % options.lager,
                                          callback=handle_message)
 
     # catch Signals

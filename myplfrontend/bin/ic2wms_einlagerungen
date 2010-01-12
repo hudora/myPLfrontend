@@ -49,21 +49,20 @@ def transfer_umlagerungen():
     "Handles the transfer of data SoftM/ISA00 -> messages"
     global rowcounter
     
+    queuename = 'ic2wms.warenzugang#%d' % options.lager
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
-    messaging.setup_queue('erp.ic-wms.warenzugang#%d' % options.lager, durable=True)
+    messaging.setup_queue(queuename, durable=True)
 
     if rows:
         display("Processing Messages")
     for row in rows:
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
-        display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
         if int(lagernr) != options.lager:
-            if options.debug:
-                print "wrong lager"
             continue
+        display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
 
         rowcounter += 1
         if options.maxnum and (rowcounter > options.maxnum):
@@ -94,8 +93,8 @@ def transfer_umlagerungen():
             # log file for replaying in case of errors
             write_journal(doc)
             if menge > 0:
-                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
-                messaging.publish(doc, 'log.ic-wms.warenzugang')
+                messaging.publish(doc, queuename)
+                messaging.publish(doc, 'log.%s' % queuename)
             isk00.delete(lock_handle)
         isk00.unlock(lock_handle)
 
