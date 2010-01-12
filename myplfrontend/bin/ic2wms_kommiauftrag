@@ -44,15 +44,13 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_kommis():
+def transfer_kommis(queuename):
     "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
     
-    queuename = 'ic2wms.kommiauftrag#%d' % options.lager
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
-    messaging.setup_queue(queuename, durable=True)
 
     if rows:
         display("Processing Messages")
@@ -149,7 +147,7 @@ def transfer_kommis():
 
 
 def main():
-    """main function - option parsing and calling of transfer_umlagerungen()."""
+    """main function - option parsing and calling of transfer_kommis()."""
     global options
     
     parser = optparse.OptionParser()
@@ -176,9 +174,11 @@ def main():
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
 
-    display("Starting ...")
+    queuename = 'ic2wms.kommiauftrag#%d' % options.lager
+    messaging.setup_queue(queuename, durable=True)
+    display("Listening to queue %s ..." % queuename)
     while True:
-        transfer_kommis()
+        transfer_kommis(queuename)
         if not options.continuous:
             break
         time.sleep(options.sleep)
