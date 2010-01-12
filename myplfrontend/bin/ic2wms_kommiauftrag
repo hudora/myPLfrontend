@@ -48,10 +48,11 @@ def transfer_kommis():
     "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
     
+    queuename = 'ic2wms.kommiauftrag#%d' % options.lager
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
-    messaging.setup_queue('erp.ic-wms.kommiauftrag#%d' % options.lager, durable=True)
+    messaging.setup_queue(queuename, durable=True)
 
     if rows:
         display("Processing Messages")
@@ -140,8 +141,8 @@ def transfer_kommis():
         if not options.dry_run:
             # log file for replaying in case of errors
             write_journal(doc)
-            messaging.publish(doc, 'erp.ic-wms.kommiauftrag#%d' % options.lager)
-            messaging.publish(doc, 'log.ic-wms.kommiauftrag')
+            messaging.publish(doc, queuename)
+            messaging.publish(doc, 'log.%s' % queuename)
             #isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
 

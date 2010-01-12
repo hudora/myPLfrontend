@@ -9,15 +9,10 @@ Rewritten by Maximillian Dornseif 2008-12 and 2010-01
 Copyright (c) 2007, 2008, 2010 HUDORA GmbH.
 """
 
-import sys
-print ("path %s" % sys.path)
-
 # From http://superjared.com/entry/django-and-crontab-best-friends/
 from django.core.management import setup_environ
 import settings
 setup_environ(settings)
-
-print ("using %s" % settings.__file__)
 
 from django.db import transaction
 from mypl.models import Lieferschein, LieferscheinPosition
@@ -61,12 +56,11 @@ def write_journal(doc):
 def softm2django(kommiauftragsnr, doc):
     """Schreibt einen Kommiauftrag in die (bald abgeschaffte) Django Datenbank."""
 
-    # TODO: this takes 0.5 seconds - why?
     if Lieferschein.objects.filter(kommissionierbelegnr=kommiauftragsnr).count() > 0:
         msg = ("Kommibeleg %s existiert bereits in Django") % (kommiauftragsnr)
         display(msg)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        return False
+        return True # aus der Queue entfernen
 
     # generate Lieferschein object in Django
     kommibeleg = Lieferschein()
@@ -187,22 +181,6 @@ def handle_message(message):
         return
 
     body = json.loads(message.body)
-    #{"anliefertermin":"2010-01-14",
-    # "info_kunde":"Ice Skates",
-    # "kommiauftragsnr":3106766,
-    # "kundenname":"Joba Outdoor - Living Att.: Thijs Althanning",
-    # "kundennr":"18831",
-    # "prioritaet":3,
-    # "positionen":[{"artnr":"39939",
-    #                "kommissionierbeleg_position":3,
-    #                "kommissionierbelegnr":3106766,
-    #                "menge":26,
-    #                "posnr":1,
-    #                "satznummer":1326436,
-    #                "setartikel":false},
-    #              ],
-    # },
-
     #if options.debug:
     #    print body
     djangokommischein = softm2django(body['kommiauftragsnr'], body)
@@ -252,15 +230,14 @@ def main():
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
 
-    channel = messaging.setup_queue('erp.ic-wms.kommiauftrag#%d' % options.lager, durable=True)
-    consumer_tag = channel.basic_consume(queue='erp.ic-wms.kommiauftrag#%d' % options.lager,
+    channel = messaging.setup_queue('ic2wms.kommiauftrag#%d' % options.lager, durable=True)
+    consumer_tag = channel.basic_consume(queue='ic2wms.kommiauftrag#%d' % options.lager,
                                          callback=handle_message)
 
     # catch Signals
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    display("path %s" % sys.path)
     display("using %s" % settings.__file__)
     display("waiting for messages ...")
 
@@ -273,6 +250,7 @@ def main():
             # every 3600 seconds Request non-acknowledged messages to be re-delivered
             channel.basic_recover(requeue=True)
             last_requeue = time.time()
+            display("%d messages processed, recovering channel" % message_count)
 
     channel.close()
     return 0
