@@ -60,7 +60,7 @@ def softm2django(kommiauftragsnr, doc):
         msg = ("Kommibeleg %s existiert bereits in Django") % (kommiauftragsnr)
         display(msg)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        return True
+        return True # aus der Queue entfernen
 
     # generate Lieferschein object in Django
     kommibeleg = Lieferschein()
