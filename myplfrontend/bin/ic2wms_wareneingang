@@ -37,6 +37,9 @@ import time
 #from myplfrontend.bin.ic2wms_einlagerungen import display, write_journal
 
 
+rowcounter = 0
+
+
 def display(msg):
     """Display messages based on command line options."""
     if options.debug or (not options.quiet):
@@ -55,20 +58,24 @@ def write_journal(doc):
 def transfer_zugaenge(lager):
     "Handles the transfer of data SoftM/ISZ00 -> messages"
 
-    if lager != 100:
-        # TODO das muss noch aus den Bestellungen rausgefummelt werden
-        raise RuntimeError("Not impl yet")
+    global rowcounter
 
     # Hole alle Warenzugangspositionen aus der Schnittstelle
     zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
     positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
-    if options.maxnum != None:
-        # FIXME: Das bedeutet, dass nicht unbedingt alle Bestellungen voll abgeschickt werden, da diese in
-        #        einzelnen Positionen verschickt werden. Vielleicht sollte man das abfragen?
-        positionen = itertools.islice(positionen, 0, options.maxnum)
 
-    msgs = []
+    outqueuename = '%s#%s' % (options.out_queue, lager)
+    messaging.setup_queue(outqueuename, durable=True)
+
     for pos in positionen:
+        if pos['lager'] != lager:
+            continue
+
+        rowcounter += 1
+        if options.maxnum and (rowcounter > options.maxnum):
+            display("Maximum number of messages reached, exiting")
+            sys.exit(0)
+
         guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
         batchnr = guidbase
         msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
@@ -78,12 +85,7 @@ def transfer_zugaenge(lager):
                "referenzen": {'bestellnr': pos['bestellnr'],
                               'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
                               'bestellposnr': pos['bestellpos']}}
-        msgs.append(msg)
 
-    # send msges
-    outqueuename = '%s#%s' % (options.out_queue, lager)
-    messaging.setup_queue(outqueuename, durable=True)
-    for msg in msgs:
         doc = messaging.empty_message('ic2wms_wareneingang',
                                       audit_trail='import_warenzugang',
                                       audit_info='Auftrag aus SoftM ISZ00')
