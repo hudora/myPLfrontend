@@ -70,38 +70,34 @@ def transfer_umlagerungen():
             display("Maximum number of messages reached, exiting")
             sys.exit(0)
 
-        if menge < 1:
-            msg = 'Umlagerung %s hat Positione ohne Menge (0) fuer %s - interessant #warn' % (komminr, artnr)
-            cs.zwitscher.zwitscher(msg, username='mypl')
-            display(msg)
-        else:
-            lock_handle = isk00.lock(satznr)
-            # We actually have a (small) race condition here, but duplicate messages are no problem
-            if not lock_handle:
-                # we couldn't lock the row, try next
-                if options.debug:
-                    print "couldn't lock the row", komminr
-                continue
-            
-            doc = messaging.empty_message('ic2wms_einlagerungen',
-                                          guid="%s-%s" % (komminr, kommiposnr),
-                                          audit_trail='import_umlagerungen',
-                                          audit_info='Auftrag aus SoftM')
-            doc.update(dict(batchnr=komminr,
-                            menge=menge,
-                            artnr=artnr,
-                            referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
-
+        lock_handle = isk00.lock(satznr)
+        # We actually have a (small) race condition here, but duplicate messages are no problem
+        if not lock_handle:
+            # we couldn't lock the row, try next
             if options.debug:
-                display(doc)
+                print "couldn't lock the row", komminr
+            continue
+            
+        doc = messaging.empty_message('ic2wms_einlagerungen',
+                                      guid="%s-%s" % (komminr, kommiposnr),
+                                      audit_trail='import_umlagerungen',
+                                      audit_info='Auftrag aus SoftM')
+        doc.update(dict(batchnr=komminr,
+                        menge=menge,
+                        artnr=artnr,
+                        referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
 
-            if not options.dry_run:
-                # log file for replaying in case of errors
-                write_journal(doc)
+        if options.debug:
+            display(doc)
+
+        if not options.dry_run:
+            # log file for replaying in case of errors
+            write_journal(doc)
+            if menge > 0:
                 messaging.publish(doc, outqueuename)
                 messaging.publish(doc, 'log.ic-wms.warenzugang')
-                isk00.delete(lock_handle)
-            isk00.unlock(lock_handle)
+            isk00.delete(lock_handle)
+        isk00.unlock(lock_handle)
 
 
 def main():
@@ -114,6 +110,9 @@ def main():
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int",
                       help='Lager, das bearbeitet werden soll')
+    parser.add_option('--in', action='append', dest="in_queues",
+                      help='Queue to read from. This option can be used multiple times to read from different queues.')
+    parser.add_option('--out', default='erp.ic-wms.warenzugang', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
@@ -125,9 +124,6 @@ def main():
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
     parser.add_option('--maxnum', type='int',
                       help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
-    parser.add_option('--in', action='append', dest="in_queues",
-                      help='Queue to read from. This option can be used multiple times to read from different queues.')
-    parser.add_option('--out', default='erp.ic-wms.warenzugang', dest='out_queue', help='Queue to send messages to.')
 
     options, args = parser.parse_args()
     if args:
