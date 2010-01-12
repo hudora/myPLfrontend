@@ -109,7 +109,7 @@ def main():
                          + 'erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
-    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
+    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.\nEg.: --out=erp.ic-wms.warenzugang')
     parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
