@@ -9,15 +9,10 @@ Rewritten by Maximillian Dornseif 2008-12 and 2010-01
 Copyright (c) 2007, 2008, 2010 HUDORA GmbH.
 """
 
-import sys
-print ("path %s" % sys.path)
-
 # From http://superjared.com/entry/django-and-crontab-best-friends/
 from django.core.management import setup_environ
 import settings
 setup_environ(settings)
-
-print ("using %s" % settings.__file__)
 
 from django.db import transaction
 from mypl.models import Lieferschein, LieferscheinPosition
@@ -66,7 +61,7 @@ def softm2django(kommiauftragsnr, doc):
         msg = ("Kommibeleg %s existiert bereits in Django") % (kommiauftragsnr)
         display(msg)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        return False
+        return True # aus der Queue entfernen
 
     # generate Lieferschein object in Django
     kommibeleg = Lieferschein()
@@ -260,7 +255,6 @@ def main():
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    display("path %s" % sys.path)
     display("using %s" % settings.__file__)
     display("waiting for messages ...")
 
