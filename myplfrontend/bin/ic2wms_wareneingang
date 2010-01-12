@@ -54,14 +54,19 @@ def write_journal(doc):
 def transfer_zugaenge():
     "Handles the transfer of data SoftM/ISZ00 -> messages"
 
+    queuename = 'ic2wms.warenzugang#%d' % options.lager
+    messaging.setup_queue(queuename, durable=True)
     # Hole alle Warenzugangspositionen aus der Schnittstelle
+    
+    # md: Ich sags nccht gerne, aber hier fehlt meines Erachtens völlig das "als erledigt markieren"
+    # in der ISZ00. D.h. - swoeit ich das überblicken kann, impoprtieren wir wieder und wieder alle 47 s
+    # die selben Zugänge.
+    # Ich denke, was wir hier brauchen, ist husoftm.lagerschnittstelle.ISZ00 um locking und löschen zu 
+    # uebernehmen. Eigentlich kann man den code ic2wms_einlagerungen fast unveraendert uebernehmen, wie mir
+    # scheint.
     zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
     positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
-    if options.maxnum != None:
-        # FIXME: Das bedeutet, dass nicht unbedingt alle Bestellungen voll abgeschickt werden, das diese in
-        #        einzelnen Positionen verschickt werden. Vielleicht sollte man das abfragen?
-        positionen = itertools.islice(positionen, 0, options.maxnum)
-
+    
     msgs = []
     for pos in positionen:
         guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
@@ -69,15 +74,13 @@ def transfer_zugaenge():
         msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
                "menge": int(float(pos['menge_berechnet'])),
                "artnr": pos['artnr'],
-               "batchnr": batchnr,
+               "batchnr": pos['bestellnr'],
                referenzen={'bestellnr': pos['bestellnr'],
                            'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
                            'bestellposnr': pos['bestellpos']}}
         msgs.append(msg)
 
     # send msges
-    qname = 'erp.ic-wms.warenzugang#100'
-    messaging.setup_queue(qname, durable=True)
     for msg in msgs:
         doc = messaging.empty_message('ic2wms_wareneingang',
                                       audit_trail='import_warenzugang',
@@ -111,8 +114,6 @@ def main():
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Daten in PostgreSQL und Kernel')
-    parser.add_option('--maxnum', type='int',
-                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
 
     options, args = parser.parse_args()
     if args:

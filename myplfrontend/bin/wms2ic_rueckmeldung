@@ -7,7 +7,6 @@
 # Created by Maximillian Dornseif on 2009-07-13 for HUDORA.
 # Copyright (c) 2009 HUDORA. All rights reserved.
 
-__revision__ = '$Revision$'
 
 from amqplib import client_0_8 as amqp
 from cs.zwitscher import zwitscher
@@ -30,7 +29,6 @@ def parse_commandline():
     """Parse the commandline and return information."""
     
     parser = OptionParser(version=True)
-    parser.version = "%%prog Rev %s" % (__revision__.strip('$Revision: '))
     parser.description = __doc__
     
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
