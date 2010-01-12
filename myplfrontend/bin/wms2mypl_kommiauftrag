@@ -9,11 +9,15 @@ Rewritten by Maximillian Dornseif 2008-12 and 2010-01
 Copyright (c) 2007, 2008, 2010 HUDORA GmbH.
 """
 
+import sys
+print ("path %s" % sys.path)
 
 # From http://superjared.com/entry/django-and-crontab-best-friends/
 from django.core.management import setup_environ
 import settings
 setup_environ(settings)
+
+print ("using %s" % settings.__file__)
 
 from django.db import transaction
 from mypl.models import Lieferschein, LieferscheinPosition
@@ -78,7 +82,7 @@ def softm2django(kommiauftragsnr, doc):
     kommibeleg.fixtermin = doc.get('fixtermin', False)
     kommibeleg.warenempfaenger = ''
     kommibeleg.lager = '100'
-    kommibeleg.satznummer = ''
+    kommibeleg.satznummer = '0'
     kommibeleg.name1 = doc.get('name1', '')
     kommibeleg.name2 = doc.get('name2', '')
     kommibeleg.name3 = doc.get('name3', '')
@@ -90,10 +94,12 @@ def softm2django(kommiauftragsnr, doc):
     kommibeleg.fax = doc.get('fax', '')
     kommibeleg.mail = doc.get('mail', '')
     kommibeleg.mobil = doc.get('mobil', '')
-    kommibeleg.versandart = 'normal'
+    kommibeleg.versandart = 'nor'
     kommibeleg.auftragsart = ''
     kommibeleg.total_weight = 0
     kommibeleg.total_volume = 0
+    print vars(kommibeleg)
+    kommibeleg.save()
 
     for position in doc.get('positionen', []):
         position_object = LieferscheinPosition()
@@ -135,7 +141,7 @@ def _export_kommi_to_kernel():
                     'land': softmschein.land,
                     'plz': softmschein.plz,
                     'art': softmschein.art,
-                    'fixtermin': softmschein.fix,
+                    'fixtermin': softmschein.fixtermin,
                     #'anbruch': kommibeleg.anbruch,
                     #'kep': kommibeleg.kep,
                     #'packstuecke': kommibeleg.packstuecke,
@@ -148,16 +154,17 @@ def _export_kommi_to_kernel():
         if options.debug:
             print mypldict
             print orderlines
-        mypl.kernel.Kerneladapter().insert_pipeline(
-            kommiauftragsnr,
-            orderlines,
-            5, # We always start with Priority 5
-            kommibeleg.warenempfaenger,
-            kommibeleg.total_weight,
-            kommibeleg.total_volume,
-            mypldict)
-        kommibeleg.status = 'in_mypl'
-        kommibeleg.save()
+        if not options.dry_run:
+            mypl.kernel.Kerneladapter().insert_pipeline(
+                kommiauftragsnr,
+                orderlines,
+                5, # We always start with Priority 5
+                kommibeleg.warenempfaenger,
+                kommibeleg.total_weight,
+                kommibeleg.total_volume,
+                mypldict)
+            kommibeleg.status = 'in_mypl'
+            kommibeleg.save()
         return kommibeleg
 
 
@@ -181,21 +188,11 @@ def handle_message(message):
 
     body = json.loads(message.body)
     #{"anliefertermin":"2010-01-14",
-    # "auftragsnr":1101869,
-    # "fixtermin":true,
-    # "guid":"3106766-1101869-65989-100",
     # "info_kunde":"Ice Skates",
     # "kommiauftragsnr":3106766,
     # "kundenname":"Joba Outdoor - Living Att.: Thijs Althanning",
     # "kundennr":"18831",
-    # "land":"NL",
-    # "name1":"Joba Outdoor - Living",
-    # "name2":"Att.: Thijs Althanning",
-    # "name3":"",
-    # "ort":"BT Oldenzaal",
-    # "plz":"7575",
     # "prioritaet":3,
-    # "strasse":"Ainsworthstraat 10"
     # "positionen":[{"artnr":"39939",
     #                "kommissionierbeleg_position":3,
     #                "kommissionierbelegnr":3106766,
@@ -206,8 +203,8 @@ def handle_message(message):
     #              ],
     # },
 
-    if options.debug:
-        print body
+    #if options.debug:
+    #    print body
     djangokommischein = softm2django(body['kommiauftragsnr'], body)
     # umlagerung_to_unit() macht die wirkliche arbeit und überträgt in den kernel.
     if djangokommischein:
@@ -263,6 +260,8 @@ def main():
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
+    display("path %s" % sys.path)
+    display("using %s" % settings.__file__)
     display("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers

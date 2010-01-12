@@ -25,7 +25,6 @@ import huTools.printing
 import husoftm.connection
 import logging
 import mypl.utils
-import produktpass.models
 
 
 __revision__ = "$Revision: 7323 $".split()[-1].strip('$')
@@ -158,7 +157,6 @@ class Lieferschein(models.Model):
         """Commits the Delivery Note to SoftM by writing records for all positions into ISR00"""
         
         # Rückmeldung in SoftM anstossen
-'erp.cs-wms.warenzugang'        
         # Lieferscheindruck anstossen
         zielqueue = 'lieferscheindruck'
         chan = messaging.setup_queue(zielqueue, durable=True)
@@ -227,18 +225,8 @@ class LieferscheinPosition(models.Model):
     def get_values_from_product(self):
         """Gets needed values from Product-Pass (article-weight and -volume)"""
 
-        try:
-            product = produktpass.models.Product.objects.get(artnr=self.artnr)
-            self.weight_per_item = product.package_weight
-            if self.weight_per_item == None:
-                self.weight_per_item = 0
-            self.volume_per_item = product.package_volume
-            if self.volume_per_item == None:
-                self.volume_per_item = 0
-        except ObjectDoesNotExist:
-            self.weight_per_item = 0
-            self.volume_per_item = 0
-            LOG.error('Productpass for Product %s does not exist' % self.artnr)
+        self.weight_per_item = 0
+        self.volume_per_item = 0
         # TODO: weigth and volume extraction doesn't work
         print "Article: %s, Weight: %s, Volume: %s" % (self.artnr, self.weight_per_item, self.volume_per_item)
 

@@ -17,8 +17,6 @@ from mypl.kernel import Kerneladapter
 from mypl.utils import format_locname
 from huTools.robusttypecasts import int_or_0
 
-import produktpass.models
-
 __revision__ = "$Revision: 7184 $"
 
 
@@ -55,32 +53,6 @@ class ProvisioningGenerator(JasperGenerator):
             for fieldname in ['provisioning_type', 'quantity_to_pick', 'lineid', 'mui']:
                 ET.SubElement(xml_pos, fieldname).text = unicode(getattr(pos, fieldname))
             xml_product = ET.SubElement(xml_pos, 'product')
-            try:
-                product = produktpass.models.Product.objects.get(artnr=pos.artnr)
-
-                # FIXME: volume is 0
-                try:
-                    volume_sum += pos.quantity_to_pick * product.package_volume_liter
-                    weight_sum += pos.quantity_to_pick * product.package_weight_kg
-                except:
-                    zwitscher('%s: Gewicht/Volumen unbekannt' % product.artnr,
-                    username='mypl')
-
-
-                for fieldname in ['artnr', 'name', 'einheit', 'ean', 'package_weight',
-                                  'package_volume', 'products_per_ve1', 'products_per_export_package']:
-                    ET.SubElement(xml_product, fieldname).text = unicode(getattr(product, fieldname))
-                ET.SubElement(xml_pos, 'total_package_weight').text \
-                    = unicode(int_or_0(product.package_weight) * int_or_0(pos.quantity_to_pick))
-                ET.SubElement(xml_pos, 'total_package_volume').text \
-                    = unicode(int_or_0(product.package_volume) * int_or_0(pos.quantity_to_pick))
-                if product.products_per_export_package > 0:
-                    ET.SubElement(xml_pos, 'export_packages_per_position').text \
-                        = unicode(int_or_0(pos.quantity_to_pick) / float(product.products_per_export_package))
-                else:
-                    ET.SubElement(xml_pos, 'export_packages_per_position').text = ''
-            except produktpass.models.Product.DoesNotExist:
-                pass
 
         ET.SubElement(xml_provisioning, 'volume_sum').text = str(volume_sum)
         ET.SubElement(xml_provisioning, 'weight_sum').text = str(weight_sum)
@@ -128,11 +100,10 @@ class MovementGenerator(JasperGenerator):
         ET.SubElement(xml_movement, "created_at").text \
             = unicode(movement.created_at.strftime('%Y-%m-%d %H:%M:%S'))
 
-        product = produktpass.models.Product.objects.get(artnr=movement.artnr)
         xml_product = ET.SubElement(xml_movement, 'product')
         for fieldname in ['artnr', 'name', 'einheit', 'ean', 'products_per_export_package',
                           'pallet_height']:
-            ET.SubElement(xml_product, fieldname).text = unicode(getattr(product, fieldname))
+            ET.SubElement(xml_product, fieldname).text = u''
 
         xml_unit = ET.SubElement(xml_movement, 'unit')
         ET.SubElement(xml_unit, "mui").text = unicode(movement.mui)
