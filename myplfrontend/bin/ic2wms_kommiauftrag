@@ -77,6 +77,7 @@ def transfer_kommis():
             msg = u'@%s: %s ohne Aniefertermin erfasst #error' % (betreuer, softmschein.auftragsnr)
             cs.zwitscher.zwitscher(msg, username='mypl')
             softmschein.liefer_date = datetime.date.today()
+            softmschein.anlieferdatum = datetime.date.today()
 
         lock_handle = isa00.lock(komminr)
         # We actually have a (small) race condition here, but duplicate messages are no problem
