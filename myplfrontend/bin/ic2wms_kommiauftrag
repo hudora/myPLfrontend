@@ -144,7 +144,7 @@ def transfer_kommis(lager):
             # log file for replaying in case of errors
             write_journal(doc)
             messaging.publish(doc, outqueuename)
-            messaging.publish(doc, 'log.ic-wms.kommiauftrag')
+            messaging.publish(doc, 'log.%s' % outqueuename)
             isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
 

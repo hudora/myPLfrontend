@@ -104,7 +104,7 @@ def transfer_zugaenge(lager):
             # log file for replaying in case of errors
             write_journal(doc)
             messaging.publish(doc, outqueuename)
-            messaging.publish(doc, 'log.ic-wms.warenzugang')
+            messaging.publish(doc, 'log.%s' % outqueuename)
 
 
 def main():
