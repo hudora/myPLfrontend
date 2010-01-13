@@ -85,8 +85,8 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
         #     pos_sql['IRMENG'] = 0
         #     pos_sql['IRKZST'] = 1
         else:
-             menge = pos['menge']
-             pos_sql['IRMENG'] = int(pos['menge'])
+            menge = pos['menge']
+            pos_sql['IRMENG'] = int(pos['menge'])
         sqlstr = 'INSERT INTO ISR00 (%s) VALUES (%s)' % (','.join(pos_sql.keys()),
                                                     ','.join([repr(x) for x in pos_sql.values()]))
         server.insert_raw(sqlstr)

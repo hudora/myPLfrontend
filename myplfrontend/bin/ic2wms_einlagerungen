@@ -20,7 +20,6 @@ import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import husoftm.warenzugangsschnittstelle
-import itertools
 import optparse
 import simplejson as json
 import sys
@@ -45,24 +44,27 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_umlagerungen():
+def transfer_umlagerungen(lager):
     "Handles the transfer of data SoftM/ISA00 -> messages"
     global rowcounter
     
-    queuename = 'ic2wms.warenzugang#%d' % options.lager
     isk00 = husoftm.lagerschnittstelle.ISK00()
     isk00.clean_stale_locks()
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
-    messaging.setup_queue(queuename, durable=True)
+    outqueuename = u"%s#%s" % (options.out_queue, lager)
+    messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
         display("Processing Messages")
     for row in rows:
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
-        if int(lagernr) != options.lager:
+
+        if int(lagernr) != lager:
             continue
-        display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
+
+        if options.debug:
+            display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
 
         rowcounter += 1
         if options.maxnum and (rowcounter > options.maxnum):
@@ -93,7 +95,7 @@ def transfer_umlagerungen():
             # log file for replaying in case of errors
             write_journal(doc)
             if menge > 0:
-                messaging.publish(doc, 'erp.ic-wms.warenzugang#%d' % options.lager)
+                messaging.publish(doc, outqueuename)
                 messaging.publish(doc, 'log.ic-wms.warenzugang')
             else:
                 display("loesche position mit leerer menge")
@@ -109,8 +111,8 @@ def main():
     parser.description = ('Uebernimmt Umlagerungsauftraege aus der Soft-Schnittstelle ISK00 und '
                          + 'erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int",
-                      help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
+    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.\nEg.: --out=erp.ic-wms.warenzugang')
     parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
@@ -128,10 +130,13 @@ def main():
         parser.error("incorrect number of arguments")
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
+    if not options.out_queue:
+        parser.error("'--out' nicht gesetzt")
 
     display("Starting with oputput to %s..." % ('erp.ic-wms.warenzugang#%d' % options.lager))
     while True:
-        transfer_umlagerungen()
+        for lager in options.lager:
+            transfer_umlagerungen(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)

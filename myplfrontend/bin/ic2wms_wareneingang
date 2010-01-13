@@ -2,7 +2,7 @@
 # encoding: utf-8
 """ ic2wms_wareneingang
 
-Uebernimmt Einlagerungsaufträge an Lager 100 aus der SoftM-Schnittstelle ISZ00 und
+Uebernimmt Einlagerungsaufträge an gegebene Lager aus der SoftM-Schnittstelle ISZ00 und
 schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange.
 
 http://blogs.23.nu/disLEXia/2007/12/antville-16699/ beschreibt die Grundsätze der Nutzung
@@ -25,15 +25,18 @@ if __name__ == "__main__":
 
 
 import cs.messaging as messaging
-import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
 import husoftm.warenzugangsschnittstelle
 import itertools
 import optparse
 import simplejson as json
 import sys
+import time
 
 #from myplfrontend.bin.ic2wms_einlagerungen import display, write_journal
+
+
+rowcounter = 0
 
 
 def display(msg):
@@ -51,13 +54,13 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_zugaenge():
+def transfer_zugaenge(lager):
     "Handles the transfer of data SoftM/ISZ00 -> messages"
 
-    queuename = 'ic2wms.warenzugang#%d' % options.lager
-    messaging.setup_queue(queuename, durable=True)
+    global rowcounter
+
     # Hole alle Warenzugangspositionen aus der Schnittstelle
-    
+
     # md: Ich sags nccht gerne, aber hier fehlt meines Erachtens völlig das "als erledigt markieren"
     # in der ISZ00. D.h. - swoeit ich das überblicken kann, impoprtieren wir wieder und wieder alle 47 s
     # die selben Zugänge.
@@ -66,22 +69,29 @@ def transfer_zugaenge():
     # scheint.
     zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
     positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
-    
-    msgs = []
+
+    outqueuename = '%s#%s' % (options.out_queue, lager)
+    messaging.setup_queue(outqueuename, durable=True)
+
     for pos in positionen:
+        if pos['lager'] != lager:
+            continue
+
+        rowcounter += 1
+        if options.maxnum and (rowcounter > options.maxnum):
+            display("Maximum number of messages reached, exiting")
+            sys.exit(0)
+
         guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
         batchnr = guidbase
         msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
                "menge": int(float(pos['menge_berechnet'])),
                "artnr": pos['artnr'],
                "batchnr": pos['bestellnr'],
-               referenzen={'bestellnr': pos['bestellnr'],
-                           'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
-                           'bestellposnr': pos['bestellpos']}}
-        msgs.append(msg)
+               "referenzen": {'bestellnr': pos['bestellnr'],
+                              'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
+                              'bestellposnr': pos['bestellpos']}}
 
-    # send msges
-    for msg in msgs:
         doc = messaging.empty_message('ic2wms_wareneingang',
                                       audit_trail='import_warenzugang',
                                       audit_info='Auftrag aus SoftM ISZ00')
@@ -93,18 +103,20 @@ def transfer_zugaenge():
         if not options.dry_run:
             # log file for replaying in case of errors
             write_journal(doc)
-            messaging.publish(doc, qname)
+            messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.ic-wms.warenzugang')
 
 
 def main():
-    """main function - option parsing and calling of transfer_umlagerungen()."""
+    """main function - option parsing and calling of transfer_zugaenge()."""
 
     global options
     parser = optparse.OptionParser()
     parser.description = ('Uebernimmt Einlagerungsauftraege aus der Soft-Schnittstelle ISZ00 '
-                          +'(Wareneingang Lager 100) und erzeugt Warenzugangsmeldungen')
+                          +' und erzeugt Warenzugangsmeldungen')
     parser.set_usage('usage: %prog [options]')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
+    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_wareneingang.log',
                       help='Wo sollen die Nachrichten protokolliert werden?')
     parser.add_option('--continuous', action='store_true',
@@ -118,14 +130,18 @@ def main():
     options, args = parser.parse_args()
     if args:
         parser.error("incorrect number of arguments")
+    if not options.lager:
+        parser.error("'--lager' nicht gesetzt")
+    if not options.out_queue:
+        parser.error("'--out' nicht gesetzt")
 
     display("Starting %r ..." % sys.argv[0])
     while True:
-        transfer_umlagerungen()
+        for lager in options.lager:
+            transfer_zugaenge(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)
-    transfer_zugaenge()
     return 0
 
 

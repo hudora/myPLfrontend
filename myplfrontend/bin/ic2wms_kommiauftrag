@@ -44,7 +44,7 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def transfer_kommis(queuename):
+def transfer_kommis(lager):
     "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
     
@@ -52,13 +52,16 @@ def transfer_kommis(queuename):
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
 
+    outqueuename = u"%s#%s" % (options.out_queue, lager)
+    messaging.setup_queue(outqueuename, durable=True)
+
     if rows:
         display("Processing Messages")
     for row in rows:
         komminr, auftragsnr, satznr, lagernr = row
         display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
-        if int(lagernr) != options.lager:
+        if int(lagernr) != lager:
             if options.debug:
                 print "wrong lager"
             continue
@@ -140,8 +143,8 @@ def transfer_kommis(queuename):
         if not options.dry_run:
             # log file for replaying in case of errors
             write_journal(doc)
-            messaging.publish(doc, queuename)
-            messaging.publish(doc, 'log.%s' % queuename)
+            messaging.publish(doc, outqueuename)
+            messaging.publish(doc, 'log.ic-wms.kommiauftrag')
             isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
 
@@ -154,8 +157,8 @@ def main():
     parser.description = ('Uebernimmt Kommibelege aus der SoftM-Schnittstelle ISA00 und '
                          + 'erzeugt Kommiauftragsmeldungen')
     parser.set_usage('usage: %prog [options]')
-    parser.add_option('--lager', type="int",
-                      help='Lager, das bearbeitet werden soll')
+    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
+    parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
     parser.add_option('--log', default='/var/log/ic2wms_kommiauftrag.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
@@ -173,12 +176,12 @@ def main():
         parser.error("incorrect number of arguments")
     if not options.lager:
         parser.error("'--lager' nicht gesetzt")
+    if not options.out_queue:
+        parser.error("'--out' nicht gesetzt")
 
-    queuename = 'ic2wms.kommiauftrag#%d' % options.lager
-    messaging.setup_queue(queuename, durable=True)
-    display("Listening to queue %s ..." % queuename)
     while True:
-        transfer_kommis(queuename)
+        for lager in options.lager:
+            transfer_kommis(lager)
         if not options.continuous:
             break
         time.sleep(options.sleep)

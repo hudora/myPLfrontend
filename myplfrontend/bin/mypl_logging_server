@@ -40,7 +40,7 @@ def parse_commandline():
     """Parse the commandline and return information."""
     
     parser = OptionParser(version=True)
-    parser.version = "%%prog %s" % (__revision__.strip('$Revision: '))
+    #parser.version = "%%prog %s" % (__revision__.strip('$Revision: ')) # git has no keyword substition
     parser.description = 'Read mails to be send from message queue and deliver them to SMTP Server.'
     
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
