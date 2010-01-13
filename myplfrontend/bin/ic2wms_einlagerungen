@@ -19,7 +19,6 @@ import cs.zwitscher
 import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
-import husoftm.warenzugangsschnittstelle
 import optparse
 import simplejson as json
 import sys

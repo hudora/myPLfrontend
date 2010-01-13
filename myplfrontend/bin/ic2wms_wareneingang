@@ -27,7 +27,7 @@ if __name__ == "__main__":
 import cs.messaging as messaging
 import huTools.NetStringIO as NetStringIO
 import husoftm.warenzugangsschnittstelle
-import itertools
+from husoftm.bestellungen import get_zugaenge_warenvereinnahmungsnr_simple
 import optparse
 import simplejson as json
 import sys
@@ -67,44 +67,78 @@ def transfer_zugaenge(lager):
     # Ich denke, was wir hier brauchen, ist husoftm.lagerschnittstelle.ISZ00 um locking und löschen zu 
     # uebernehmen. Eigentlich kann man den code ic2wms_einlagerungen fast unveraendert uebernehmen, wie mir
     # scheint.
-    zugaenge = husoftm.warenzugangsschnittstelle.list_warenzugang()
-    positionen = itertools.chain(zugang['bestellpositionen'] for zugang in zugaenge)
+
+    # cb: Wir können den Code nicht ganz 1 zu 1 übernehmen, da in der ISZ00 nur die 'globalen' Bestelldaten
+    # stehen, nicht aber die jeweiligen Positionen. Diese Infos kommen aus der esz00.
+
+    isz00 = husoftm.warenzugangsschnittstelle.ISZ00()
+    isz00.clean_stale_locks()
 
     outqueuename = '%s#%s' % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
 
-    for pos in positionen:
-        if pos['lager'] != lager:
-            continue
+    # bestellnr, warenvereinnahmungsnr und satznr
+    rows = isz00.available_rows(fields="IZBSTN, IZWVNR, IZSANR")
+    if rows:
+        display("Processing Messages")
 
-        rowcounter += 1
+    for row in rows:
         if options.maxnum and (rowcounter > options.maxnum):
-            display("Maximum number of messages reached, exiting")
+            # Das ist eine ungenaue Lösung, aber so wird sichergestellt, dass eine Bestellung vollständig
+            # verarbeitet wurde.
+            display("Maximum number of messages exceeded (%d/%d), exiting" % (rowcounter, options.maxnum))
             sys.exit(0)
 
-        guidbase = "%(bestellnr)s-%(warenvereinnahmungsnr)s" % pos
-        batchnr = guidbase
-        msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
-               "menge": int(float(pos['menge_berechnet'])),
-               "artnr": pos['artnr'],
-               "batchnr": pos['bestellnr'],
-               "referenzen": {'bestellnr': pos['bestellnr'],
-                              'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
-                              'bestellposnr': pos['bestellpos']}}
+        bestellnr, warenvereinnahmungsnr, satznr = row
+        guidbase = "%s-%s" % (bestellnr, warenvereinnahmungsnr)
 
-        doc = messaging.empty_message('ic2wms_wareneingang',
-                                      audit_trail='import_warenzugang',
-                                      audit_info='Auftrag aus SoftM ISZ00')
-        doc.update(msg)
+        lock_handle = isz00.lock(satznr)
+        # We actually have a (small) race condition here, but duplicate messages are no problem
+        if not lock_handle:
+            # we couldn't lock the row, try next
+            if options.debug:
+                print "couldn't lock the row", guidbase
+            continue
 
-        if options.debug:
-            display(msg)
+        positionen = get_zugaenge_warenvereinnahmungsnr_simple(bestellnr, warenvereinnahmungsnr)
+        for pos in positionen:
+            if pos['lager'] != lager:
+                continue
 
-        if not options.dry_run:
-            # log file for replaying in case of errors
-            write_journal(doc)
-            messaging.publish(doc, outqueuename)
-            messaging.publish(doc, 'log.%s' % outqueuename)
+            rowcounter += 1
+
+            msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
+                   "menge": int(float(pos['menge_berechnet'])),
+                   "artnr": pos['artnr'],
+                   "batchnr": pos['bestellnr'],
+                   "referenzen": {'bestellnr': pos['bestellnr'],
+                                  'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
+                                  'bestellposnr': pos['bestellpos']}}
+
+            doc = messaging.empty_message('ic2wms_wareneingang',
+                                          audit_trail='import_warenzugang',
+                                          audit_info='Auftrag aus SoftM ISZ00')
+            doc.update(msg)
+
+            if options.debug:
+                display(msg)
+
+            if not options.dry_run:
+                # log file for replaying in case of errors
+                write_journal(doc)
+                messaging.publish(doc, outqueuename)
+                messaging.publish(doc, 'log.%s' % outqueuename)
+
+        # FIXME: Wie bekomme ich heraus, ob isz00.delete(lock_handle) denn jetzt aufgerufen werden kann:
+        # Problem dabei:
+        #               - Wenn die Positionen teilweise an andere Lager gingen, also noch keine 
+        #                 zugehörigen Nachrichten verschickt wurden, dann darf ich es noch nicht löschen.
+
+        # Vielleicht muss hier doch ein Prozess laufen, der (anhand der Log-Daten) prüft, ob eine 
+        # Bestellung vollständig verarbeitet worden ist und diese dann erst löscht. (?)
+
+        # isz00.delete(lock_handle)
+        isz00.unlock(lock_handle)
 
 
 def main():
@@ -142,6 +176,7 @@ def main():
         if not options.continuous:
             break
         time.sleep(options.sleep)
+    print "%d Nachrichten gesendet." % rowcounter
     return 0
 
 
