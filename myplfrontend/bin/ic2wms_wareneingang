@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
 import cs.messaging as messaging
 import huTools.NetStringIO as NetStringIO
-import husoftm.warenzugangsschnittstelle
+import husoftm.lagerschnittstelle
 from husoftm.bestellungen import get_zugaenge_warenvereinnahmungsnr_simple
 import optparse
 import simplejson as json
@@ -57,19 +57,7 @@ def transfer_zugaenge(lager):
 
     global rowcounter
 
-    # Hole alle Warenzugangspositionen aus der Schnittstelle
-
-    # md: Ich sags nccht gerne, aber hier fehlt meines Erachtens völlig das "als erledigt markieren"
-    # in der ISZ00. D.h. - swoeit ich das überblicken kann, impoprtieren wir wieder und wieder alle 47 s
-    # die selben Zugänge.
-    # Ich denke, was wir hier brauchen, ist husoftm.lagerschnittstelle.ISZ00 um locking und löschen zu 
-    # uebernehmen. Eigentlich kann man den code ic2wms_einlagerungen fast unveraendert uebernehmen, wie mir
-    # scheint.
-
-    # cb: Wir können den Code nicht ganz 1 zu 1 übernehmen, da in der ISZ00 nur die 'globalen' Bestelldaten
-    # stehen, nicht aber die jeweiligen Positionen. Diese Infos kommen aus der esz00.
-
-    isz00 = husoftm.warenzugangsschnittstelle.ISZ00()
+    isz00 = husoftm.lagerschnittstelle.ISZ00()
     isz00.clean_stale_locks()
 
     outqueuename = '%s#%s' % (options.out_queue, lager)
