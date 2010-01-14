@@ -52,6 +52,7 @@ def transfer_umlagerungen(lager):
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
     outqueuename = u"%s#%s" % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
+    display("Starting with oputput to %s..." % (outqueuename))
 
     if rows:
         display("Processing Messages")
@@ -78,7 +79,7 @@ def transfer_umlagerungen(lager):
                 print "couldn't lock the row", komminr
             continue
             
-        doc = messaging.empty_message('ic2wms_einlagerungen',
+        doc = messaging.empty_message('ic2wms_umlagerung',
                                       guid="%s-%s" % (komminr, kommiposnr),
                                       audit_trail='import_umlagerungen',
                                       audit_info='Auftrag aus SoftM')
@@ -95,7 +96,7 @@ def transfer_umlagerungen(lager):
             write_journal(doc)
             if menge > 0:
                 messaging.publish(doc, outqueuename)
-                messaging.publish(doc, 'log.ic-wms.warenzugang')
+                messaging.publish(doc, 'log.%s' % outqueuename)
             else:
                 display("loesche position mit leerer menge")
             isk00.delete(lock_handle)
@@ -112,7 +113,7 @@ def main():
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.\nEg.: --out=erp.ic-wms.warenzugang')
-    parser.add_option('--log', default='/var/log/ic2wms_einlagerungen.log',
+    parser.add_option('--log', default='/var/log/ic2wms_umlagerung.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
                       help='Run continuously forever')
@@ -132,7 +133,6 @@ def main():
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
 
-    display("Starting with oputput to %s..." % ('erp.ic-wms.warenzugang#%d' % options.lager))
     while True:
         for lager in options.lager:
             transfer_umlagerungen(lager)

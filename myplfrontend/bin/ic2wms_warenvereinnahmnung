@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-""" ic2wms_wareneingang
+""" ic2wms_warenvereinnahmnung
 
 Uebernimmt Einlagerungsaufträge an gegebene Lager aus der SoftM-Schnittstelle ISZ00 und
 schreibt die als Warenzugangsmeldungen in eine Nachrichtenschlange.
@@ -100,7 +100,7 @@ def transfer_zugaenge(lager):
                                   'warenvereinnahmungsnr': pos['warenvereinnahmungsnr'],
                                   'bestellposnr': pos['bestellpos']}}
 
-            doc = messaging.empty_message('ic2wms_wareneingang',
+            doc = messaging.empty_message('ic2wms_warenvereinnahmnung',
                                           audit_trail='import_warenzugang',
                                           audit_info='Auftrag aus SoftM ISZ00')
             doc.update(msg)
@@ -129,7 +129,7 @@ def main():
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
-    parser.add_option('--log', default='/var/log/ic2wms_wareneingang.log',
+    parser.add_option('--log', default='/var/log/ic2wms_warenvereinnahmnung.log',
                       help='Wo sollen die Nachrichten protokolliert werden?')
     parser.add_option('--continuous', action='store_true',
                       help='Run continuously forever')
