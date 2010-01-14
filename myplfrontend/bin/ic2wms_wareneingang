@@ -33,8 +33,6 @@ import simplejson as json
 import sys
 import time
 
-#from myplfrontend.bin.ic2wms_einlagerungen import display, write_journal
-
 
 rowcounter = 0
 
@@ -83,12 +81,6 @@ def transfer_zugaenge(lager):
         display("Processing Messages")
 
     for row in rows:
-        if options.maxnum and (rowcounter > options.maxnum):
-            # Das ist eine ungenaue Lösung, aber so wird sichergestellt, dass eine Bestellung vollständig
-            # verarbeitet wurde.
-            display("Maximum number of messages exceeded (%d/%d), exiting" % (rowcounter, options.maxnum))
-            sys.exit(0)
-
         bestellnr, warenvereinnahmungsnr, satznr = row
         guidbase = "%s-%s" % (bestellnr, warenvereinnahmungsnr)
 
@@ -101,10 +93,15 @@ def transfer_zugaenge(lager):
             continue
 
         positionen = get_zugaenge_warenvereinnahmungsnr_simple(bestellnr, warenvereinnahmungsnr)
+        lager_found = False
         for pos in positionen:
             if pos['lager'] != lager:
+                if lager_found:
+                    display("Gleiche Warenvereinnahmungsnr %s, unterschiedliche Lager %s - %s"
+                            % (Warenvereinnahmungsnr, lager, pos['lager']))
                 continue
 
+            lager_found = True
             rowcounter += 1
 
             msg = {"guid": "%s-%s" % (guidbase, pos['bestellpos']),
@@ -129,15 +126,8 @@ def transfer_zugaenge(lager):
                 messaging.publish(doc, outqueuename)
                 messaging.publish(doc, 'log.%s' % outqueuename)
 
-        # FIXME: Wie bekomme ich heraus, ob isz00.delete(lock_handle) denn jetzt aufgerufen werden kann:
-        # Problem dabei:
-        #               - Wenn die Positionen teilweise an andere Lager gingen, also noch keine 
-        #                 zugehörigen Nachrichten verschickt wurden, dann darf ich es noch nicht löschen.
-
-        # Vielleicht muss hier doch ein Prozess laufen, der (anhand der Log-Daten) prüft, ob eine 
-        # Bestellung vollständig verarbeitet worden ist und diese dann erst löscht. (?)
-
-        # isz00.delete(lock_handle)
+        if lager_found:
+            isz00.delete(lock_handle)
         isz00.unlock(lock_handle)
 
 
