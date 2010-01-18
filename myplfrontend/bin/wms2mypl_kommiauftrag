@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""Uebernimmt alle offenen Kommissionierbelege aus der Soft-Schnittstelle ISA00, legt
-einen Lieferscheinsatz (==Komissionierbeleg) in Django an und schreibt die Daten in den kernelE.
-Der Status des Satzes in ISA00 wird dann auf "X" gesetzt.
+"""
+Empfängt offene Kommissionierbelege aus einer message queue, legt einen Lieferscheinsatz
+(==Komissionierbeleg) in Django an und schreibt die Daten in den kernelE.
 
 Created by Lars Ronge, Maximillian Dornseif on 2007-12-07, 2007-12-19.
 Rewritten by Maximillian Dornseif 2008-12 and 2010-01
@@ -236,9 +236,10 @@ def main():
     if not options.in_queues:
         parser.error("'--in' nicht gesetzt")
 
+    channel = None
     for qname in options.in_queues:
         inqueuename = "%s#%s" % (qname, options.lager)
-        channel = messaging.setup_queue(inqueuename, durable=True)
+        channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
         consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
     # catch Signals

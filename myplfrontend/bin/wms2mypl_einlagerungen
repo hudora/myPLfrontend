@@ -228,9 +228,10 @@ def main():
     if not options.in_queues:
         parser.error("'--in' nicht gesetzt")
 
+    channel = None
     for qname in options.in_queues:
         inqueuename = "%s#%s" % (qname, options.lager)
-        channel = messaging.setup_queue(inqueuename, durable=True)
+        channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
         consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
     # catch Signals
