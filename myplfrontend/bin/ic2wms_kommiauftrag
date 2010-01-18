@@ -46,7 +46,7 @@ def write_journal(doc):
 
 
 def transfer_kommis(lager):
-    "Handeles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
+    "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
     
     isa00 = husoftm.lagerschnittstelle.ISA00()
