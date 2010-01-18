@@ -19,6 +19,7 @@ import datetime
 import husoftm.kunden
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
+import husoftm.versandart
 import huTools.NetStringIO as NetStringIO
 import optparse
 import simplejson as json
@@ -136,6 +137,11 @@ def transfer_kommis(lager):
         if softmschein.fixtermin or softmschein.art == 'WA':
             doc['fixtermin'] = True
             doc['prioritaet'] = 3
+
+        if softmschein.versandart:
+            # Beschreibung der Versandart aus SoftM
+            versandart = husoftm.versandart.versandart(softmschein.versandart)[1]
+            doc['versandart'] = versandart
 
         if options.debug:
             display(doc)
