@@ -48,7 +48,7 @@ def write_journal(doc):
 def transfer_kommis(lager):
     "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
-    
+
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
     rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
@@ -138,9 +138,13 @@ def transfer_kommis(lager):
             doc['fixtermin'] = True
             doc['prioritaet'] = 3
 
-        if softmschein.versandart:
+        if softmschein.versandart: # FIXME gibt es wahrscheinlich immer, also ist die if-clause unnütz
             # Beschreibung der Versandart aus SoftM
+            # In SoftM werden teilweise auch versandvorschriften in die Versandart gepackt, bspw. Hebebühne.
+            # Dh. die Versandart wird von einem späteren Filter nochmals überprüft/verändert.
+            # Hier schonmal die Daten aus dem SoftM eintragen
             versandart = husoftm.versandart.versandart(softmschein.versandart)[1]
+            doc['versandartschluessel'] = softmschein.versandart
             doc['versandart'] = versandart
 
         if options.debug:

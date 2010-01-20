@@ -1,23 +1,24 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""wms2file_kommiauftrag --- Describe Tool here äöü---
+"""wmsfilter_versandarten --- Describe Tool here äöü---
 """
 
-# myplfrontend/bin/wms2file_kommiauftrag
-# Created by Christoph Borgolte on 2010-01-18 for HUDORA.
+# myplfrontend/bin/wmsfilter_versandarten
+# Created by Christoph Borgolte on 2010-01-20 for HUDORA.
 # Copyright (c) 2010 HUDORA. All rights reserved.
 
-
 from optparse import OptionParser
+import cs.messaging as messaging
 import datetime
-import huTools.protocols
 import os
 import os.path
-import cs.messaging as messaging
 import signal
-import sys
 import simplejson as json
+import sys
 import time
+
+import husoftm.lieferscheine
+import random
 
 # globals
 options = None
@@ -46,25 +47,42 @@ def write_journal(doc):
     nstring.file.close()
 
 
-def _create_filename(path):
-    """Create an unique filename based upon the process id and the actual timestamp."""
-    pid = os.getpid()
-    fname = "%s_%s" % (pid, datetime.datetime.now().isoformat().replace(':', '_').replace('.', '_'))
-    fname = os.path.join(path, fname)
-    assert(os.path.exists(fname) == False)
-    return fname
+def filter_message(message):
+    """Append / Remove information from messages.
+
+    Converts it back to a python type from its json representation first.
+    Returns the python type.
+    """
+    doc = messaging.decode(message.body)
+    # replace code below with something more meaningful ...
+    versandartschluessel = doc.get('versandartschluessel')
+    if not versandartschluessel:
+        kommibeleg = husoftm.lieferscheine.Kommibeleg(doc['kommiauftragsnr'])
+        versandartschluessel = kommibeleg.versandart
+    else:
+        # unnötigen Eintrag versandartschluessel entfernen
+        del(doc['versandartschluessel'])
+
+    # hier muss noch ein cleverer Algorithmus her!
+    pudelfaktor = lambda x, y: random.choice(('DPD', 'DPD unfrei', 'EXW', 'DHL', u'Mäuler'))
+    versandart = pudelfaktor(versandartschluessel, doc)
+    doc['versandart'] = versandart
+    return doc
 
 
 def handle_message(message):
-    """Callback function used by channel.basic_consume for writing 'Warenzugang' to file."""
+    """Callback function used by channel.basic_consume for processing incoming messages.
+
+    Processed messages will acknowledged, that is they will be deleted from the queue by the messaging system.
+    """
     global message_count
 
-    body = json.loads(message.body)
-    if options.debug:
-        print body
+    # call filter and publish to outgoing queues
+    doc = filter_message(message)
+    for queue in options.out_queues:
+        messaging.publish(doc, routing_key=queue, chan=channel, exchange=None, durable=options.durable, auto_delete=options.auto_delete)
 
-    xmlstring = huTools.protocols.dicttoxml(body, roottag='data')
-    open(_create_filename(options.path), "w").write(xmlstring)
+    # acknowledged message
     message.channel.basic_ack(message.delivery_tag)
     message_count += 1
 
@@ -81,17 +99,21 @@ def cancel_processing():
     for consumer_tag in consumer_tags:
         channel.basic_cancel(consumer_tag)
 
+
 def parse_commandline():
     """Parse the commandline and return information."""
 
     parser = OptionParser(version=True)
     parser.description = __doc__
-    parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--in', dest="in_queues", action='append',
-                      help='Name der Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
+                      help='Name einer Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
                       +'angegeben, wird aus mehreren Queues gelesen. Beispiel --in=erp.ic-wms.warenzugang.')
-    parser.add_option('-p', '--path', help='Path where to store the files.')
+    parser.add_option('--out', dest="out_queues", action='append',
+                      help='Name der Queue, in die geschrieben werden soll. Wird diese Parameter mehrfach '
+                      +'angegeben, wird die gefilterte Nachricht in alle dieser Queues geschickt.')
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
+    parser.add_option('--durable', action='store_true', default=True, help='Durable out-queue')
+    parser.add_option('--auto-delete', action='store_true', default=False, help='auto_delete out-queue')
     parser.add_option('-d', '--debug', action='store_true', help='Enables debugging mode')
     parser.add_option('-n', '--dry-run', action='store_true',
                       help='Doesnt write anything to file system. No acknowledgment of messages.')
@@ -100,12 +122,10 @@ def parse_commandline():
     if len(args) > 0: # we expect no non option arguments
         parser.error('incorrect number of arguments')
 
-    if not opts.lager:
-        parser.error("'--lager' nicht gesetzt")
-    if not opts.path:
-        parser.error("'--path' nicht gesetzt")
     if not opts.in_queues:
         parser.error("'--in' nicht gesetzt")
+    if not opts.out_queues:
+        parser.error("'--out' nicht gesetzt")
 
     return opts, args
 
@@ -117,12 +137,16 @@ def main(opts, args):
     options = opts
 
     channel = None
+    # configure incoming queues
     for qname in options.in_queues:
-        for lager in options.lager:
-            inqueuename = "%s#%s" % (qname, lager)
-            display('listening to %s ...' % inqueuename)
-            channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
-            consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
+        channel = messaging.setup_queue(qname, channel=channel, durable=True)
+        consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message))
+        display('listening to queue %s w/ consumer_tag %s on channel %s' % (qname, consumer_tags[-1], channel))
+
+    # configure outgoing queues
+    for queue in options.out_queues:
+        messaging.setup_queue(qname, channel=channel, durable=options.durable, auto_delete=options.auto_delete, exclusive=False)
+
 
     # catch Signals
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
