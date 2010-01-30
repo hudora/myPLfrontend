@@ -131,9 +131,9 @@ def _send_delete_to_kernel(path, data):
     """Send a DELETE request to the kernel."""
     httpconn = httplib2.Http()
     resp, content = httpconn.request(KERNELURL + '/%s' % path, 'DELETE', data)
-    if resp['status'] == 204:
+    if int(resp['status']) == 204:
         return content
-    elif resp['status'] == 404:
+    elif int(resp['status']) == 404:
         return None
     else:
         raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
@@ -701,9 +701,10 @@ def kommiauftrag_nullen(kommiauftragnr, username, begruendung):
     return content
 
 
-def movement_stornieren(oid):
+def movement_stornieren(movementid, username, begruendung):
     """Cancel a movement."""
-    return _send_delete_to_kernel('movement/%s' % oid)
+    data = u'Movement durch %s genullt. Begruendung: %s' % (username, begruendung)
+    return _send_delete_to_kernel('movement/%s' % movementid, data)
 
 
 def find_provisioning_candidates(menge, artnr):
