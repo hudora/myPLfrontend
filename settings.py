@@ -97,6 +97,12 @@ DATABASE_NAME = 'hudora'
 DATABASE_PASSWORD = 'ge3Xei2O'
 DATABASE_USER = 'hudora'
 
+DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
+DATABASE_HOST = ''
+DATABASE_NAME = ''
+DATABASE_PASSWORD = ''
+DATABASE_USER = 'testdb'
+
 SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
 EMAIL_HOST = 'mail.hudora.biz'
 EMAIL_USE_TLS = True
