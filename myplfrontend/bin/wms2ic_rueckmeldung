@@ -142,7 +142,8 @@ def handle_message_normal(message):
     
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('zurueckmelden', kommibeleg, hugogramm)
-    # vorerst fuehren wir hier nooch cinht die eigentliche rueckmeldung durch
+    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
+    
     channel.basic_ack(message.delivery_tag)
 
 
