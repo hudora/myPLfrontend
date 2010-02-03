@@ -63,7 +63,7 @@ def handle_message(message):
     if options.debug:
         print body
 
-    xmlstring = huTools.protocols.dicttoxml(body, roottag='data')
+    xmlstring = huTools.protocols.dicttoxml(body, roottag='kommiauftrag')
     open(_create_filename(options.path), "w").write(xmlstring)
     message.channel.basic_ack(message.delivery_tag)
     message_count += 1
