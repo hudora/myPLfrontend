@@ -131,13 +131,13 @@ def main(opts, args):
     display("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers
-    last_requeue = 0
+    last_requeue = time.time()
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
         if time.time() - last_requeue > 3600:
             # every 3600 seconds Request non-acknowledged messages to be re-delivered
-            channel.basic_recover(requeue=True)
+            channel.basic_recover(requeue=False)
             last_requeue = time.time()
             display("%d messages processed, recovering channel" % message_count)
 

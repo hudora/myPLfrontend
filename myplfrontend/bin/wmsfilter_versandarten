@@ -71,7 +71,7 @@ def get_packet_weights(artnr, menge):
         cs.zwitscher.zwitscher(u'%r kein Paketgewicht! #warning' % artnr, username='debugger')
         package_weight = 5000
     packets = []
-    for n in [x for x in articles_per_box if x is not None]:
+    for n in [x for x in articles_per_box if x not in (None, 0)]: # FIXME: Oder liegt hier bei 0 oder None ein eAP Fehler vor?
         tmp = menge / n
         packets += [package_weight * n] * tmp
         menge %= n
@@ -278,13 +278,13 @@ def main(opts, args):
     display("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers
-    last_requeue = 0
+    last_requeue = time.time()
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()
         if time.time() - last_requeue > 3600:
             # every 3600 seconds Request non-acknowledged messages to be re-delivered
-            channel.basic_recover(requeue=True)
+            channel.basic_recover(requeue=False)
             last_requeue = time.time()
             display("%d messages processed, recovering channel" % message_count)
 
