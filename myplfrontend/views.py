@@ -27,9 +27,11 @@ def _get_locations_by_height():
     values are again dictionaries containing locations belonging to a given height."""
     booked, unbooked = {}, {}
 
-    # i suspect having a server-side 'location_detail_list' would provide a great speedup here
+    # i suspect having a server-side (erlang) 'location_detail_list' would provide a great speedup here
     for location in myplfrontend.kernelapi.get_location_list():
         info = myplfrontend.kernelapi.get_location(location)
+        if int(info['preference']) < 1:
+            continue
         loc_info = dict(name=info['name'], preference=info['preference'])
         height = info['height']
         if (info['reserved_for'] or info['allocated_by']):
