@@ -97,7 +97,7 @@ def transfer_kommis(lager):
                                       audit_info='Auftrag aus SoftM')
         doc.update(dict(kommiauftragsnr=komminr,
                         anliefertermin=softmschein.anlieferdatum.strftime("%Y-%m-%d"),
-                        prioritaet=7, # TODO: mit etwas realistischerem befuellen
+                        prioritaet=7, # Wird noch überschrieben, s.u.
                         # anliefertermin_ab
                         # versandtermin
                         # versandtermin_ab
@@ -136,7 +136,13 @@ def transfer_kommis(lager):
 
         if softmschein.fixtermin or softmschein.art == 'WA':
             doc['fixtermin'] = True
-            doc['prioritaet'] = 3
+
+        # Priorität:
+        # 100000 - Normal;
+        # 100010 - Fixtermin;
+        # 100100 - Werbeauftrag;
+        # 100110 - Fixtermin + Werbeauftrag
+        doc['prioritaet'] = 100000 + 10 * int(bool(softm.fixtermin)) + 100 * int(bool(softmschein.art == 'WA'))
 
         if softmschein.versandart: # FIXME gibt es wahrscheinlich immer, also ist die if-clause unnütz
             # Beschreibung der Versandart aus SoftM
