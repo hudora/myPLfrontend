@@ -17,7 +17,6 @@ import cs.messaging as messaging
 import cs.zwitscher
 import datetime
 import husoftm.kunden
-import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import husoftm.versandart
 import huTools.NetStringIO as NetStringIO
@@ -49,28 +48,22 @@ def transfer_kommis(lager):
     "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
     global rowcounter
 
-    isa00 = husoftm.lagerschnittstelle.ISA00()
-    isa00.clean_stale_locks()
-    rows = isa00.available_rows(fields="IAKBNR, IAAUFN, IASANR, IALGNR")
-
     outqueuename = u"%s#%s" % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
 
-    if rows:
-        display("Processing Messages")
-    for row in rows:
-        komminr, auftragsnr, satznr, lagernr = row
+    lsnrs = husoftm.lieferscheine.get_lieferscheinnrs_for_lager(lager)
+    lsnrs.sort()
+    lsnrs.reverse()
+
+    for lsnr in lsnrs[:5]:
+        ls = husoftm.lieferscheine.Lieferschein(lsnr)
+        komminr, auftragsnr, satznr, lagernr = [ls.kommissionierbelegnr, ls.auftragsnr, ls.satznr, ls.lager]
         display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
         if int(lagernr) != lager:
             if options.debug:
                 print "wrong lager"
             continue
-
-        rowcounter += 1
-        if options.maxnum and (rowcounter > options.maxnum):
-            display("Maximum number of messages reached, exiting")
-            sys.exit(0)
 
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
 
@@ -82,18 +75,10 @@ def transfer_kommis(lager):
             softmschein.liefer_date = datetime.date.today()
             softmschein.anlieferdatum = datetime.date.today()
 
-        lock_handle = isa00.lock(komminr)
-        # We actually have a (small) race condition here, but duplicate messages are no problem
-        if not lock_handle:
-            # we couldn't lock the row, try next
-            if options.debug:
-                print "couldn't lock the row", komminr
-            continue
-
         # Datensatz ist gelockt, wir koennen damit arbeiten
-        doc = messaging.empty_message('ic2wms_kommiauftrag',
+        doc = messaging.empty_message('ic2wms_xovr.kommiauftrag',
                                       guid="%s-%s-%s-%s" % (komminr, auftragsnr, satznr, lagernr),
-                                      audit_trail='ic2wms_kommiauftrag',
+                                      audit_trail='ic2wms_xovr.kommiauftrag',
                                       audit_info='Auftrag aus SoftM')
         doc.update(dict(kommiauftragsnr=komminr,
                         anliefertermin=softmschein.anlieferdatum.strftime("%Y-%m-%d"),
@@ -161,8 +146,6 @@ def transfer_kommis(lager):
             write_journal(doc)
             messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.%s' % outqueuename)
-            isa00.delete(lock_handle)
-        isa00.unlock(lock_handle)
 
 
 def main():
@@ -175,7 +158,7 @@ def main():
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
-    parser.add_option('--log', default='/var/log/ic2wms_kommiauftrag.log',
+    parser.add_option('--log', default='/var/log/ic2wms_xovr.kommiauftrag.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
                       help='Run continuously forever')
