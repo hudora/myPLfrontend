@@ -43,7 +43,7 @@ class _ProvisioningGenerator(JasperGenerator):
         """Generic functionality to create a XML file from kernelE's kommischein information."""
 
         provisioning_dict = myplfrontend.kernelapi.get_kommischein(provisioning_id)
-        
+
         xmlroot = self.root
         xml_provisioning = ET.SubElement(xmlroot, 'provisioning')
 

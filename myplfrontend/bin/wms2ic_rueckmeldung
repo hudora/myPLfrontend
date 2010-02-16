@@ -19,10 +19,13 @@ import husoftm.connection
 import husoftm.kunden
 import husoftm.lieferscheine
 import simplejson as json
+import cs.messaging as messaging
 
 # For exiting the proessing loop
 process_messages = True
-consumer_tag = channel = None
+channel = None
+options = None
+consumer_tags = []
 
 
 def parse_commandline():
@@ -32,31 +35,22 @@ def parse_commandline():
     parser.description = __doc__
     
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
+    parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
+    parser.add_option('--in', dest="in_queue", help="Beispiel --in=erp.ic-wms.rueckmeldung.')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
     parser.add_option('-o', '--output', default='rueckmeldung.log',
                       help='output all Kommischeint to logfile [%default]')
     
-    options, args = parser.parse_args()
+    opts, args = parser.parse_args()
+    if not opts.lager:
+        parser.error("'--lager' nicht gesetzt")
+    if not opts.in_queue:
+        parser.error("'--in' nicht gesetzt")
     if len(args) > 0: # we expect no non option arguments
         parser.error('incorrect number of arguments')
-    return options, args
-    
+    return opts, args
 
-def init_broker():
-    "Init Message Broker Connection"
-    conn = amqp.Connection(host="rabbitmq.local.hudora.biz:5672", userid="mypl",
-                           password="iajoQuoomu6Woosh7Ief", virtual_host="/", insist=False)
-    chan = conn.channel()
-    # ensured the required routing is set-up
-    chan.exchange_declare(exchange="erp.cs-wms.rueckmeldung#spezial", type="direct",
-                          durable=True, auto_delete=False)
-    chan.queue_declare(queue="erp.cs-wms.rueckmeldung#spezial", durable=True,
-                       exclusive=False, auto_delete=False)
-    chan.queue_bind(queue="erp.cs-wms.rueckmeldung#spezial", exchange="erp.cs-wms.rueckmeldung#spezial",
-                    routing_key="erp.cs-wms.rueckmeldung#spezial")
-    return conn, chan
-    
 
 def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
     "Rückmeldung zu SoftM."
@@ -121,30 +115,57 @@ def log_message(typ, kommibeleg, hugogramm):
     fd.close()
     
 
+def lieferscheindruck(kommibeleg, hugogramm=None):
+    """Druckauftrag in die Lieferscheindruck Queue schicken."""
+    # Lieferscheindruck anstossen
+    zielqueue = 'lieferscheindruck#%s' % kommibeleg.lager
+    chan = messaging.setup_queue(zielqueue, durable=True)
+    doc = messaging.empty_message('myplfrontend.bin.wms2ic_rueckmeldung',
+                                  guid='myplfrontend.kommiauftragsrueckmeldung-%s' % kommibeleg.kommissionierbelegnr,
+                                  audit_info=u'Lieferscheindruck nach Rückmeldung angefordert')
+    doc['kommiauftragnr'] = kommibeleg.kommissionierbelegnr
+    doc['generation'] = 1
+
+    # Lager 38 -> per ftp an Mäuler
+    if int(kommibeleg.lager) == 38:
+        doc['printer'] = "ftp"
+        doc['username'] = "11515hudora"
+        doc['password'] = "Pa84751987"
+        doc['hostname'] = "maeuler-spedition.de"
+        doc['directory'] = "In/LIEF/ZBV"
+    # sonst auf Lempel drucken /lg100
+    else:
+        doc['printer'] = "DruckerLempel"
+    messaging.publish(doc, zielqueue)
+
+
 def benachrichtigen(kommibeleg, hugogramm):
     """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
     zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                                         hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
-    
+
 
 def handle_message_spezial(message):
     """Callback function used by channel.basic_consume for 'nullen'."""
-    
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('nullen', kommibeleg, hugogramm)
-    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
+    #dbg erstmal ausgeschaltet: sind noch einige von hand zurückgemeldete kommis im umlauf
+    #zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
     channel.basic_ack(message.delivery_tag)
     benachrichtigen(kommibeleg, hugogramm)
-    
+    lieferscheindruck(kommibeleg)
+
+
 def handle_message_normal(message):
     """Callback function used by channel.basic_consume for 'zurueckmelden'."""
-    
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('zurueckmelden', kommibeleg, hugogramm)
-    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
-    
+    #dbg erstmal ausgeschaltet: sind noch einige von hand zurückgemeldete kommis im umlauf
+    #zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
+
     channel.basic_ack(message.delivery_tag)
+    lieferscheindruck(kommibeleg)
 
 
 # This might go somewhere like a signal handler
@@ -156,34 +177,39 @@ def cancel_processing():
     print "Exiting"
     process_messages = False
     # Tell the channel you dont want to consume anymore
-    channel.basic_cancel(consumer_tag)
-    
+    for consumer_tag in consumer_tags:
+        channel.basic_cancel(consumer_tag)
 
-def main(options):
+
+def main(opts):
     """Setum message consuming."""
-    global channel, consumer_tag
-    
-    connection, channel = init_broker()
-    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#spezial', callback=handle_message_spezial)
-    consumer_tag = channel.basic_consume(queue = 'erp.cs-wms.rueckmeldung#normal', callback=handle_message_normal)
-    
+    global channel, consumer_tags, options
+    options = opts
+
+    inqueuename = "%s#%s" % (option.in_queue, option.lager)
+    qname = "%s#%s" % (inqueuename, 'spezial')
+    display('listening to %s ...' % qname)
+    channel = messaging.setup_queue(qname, channel=channel, durable=True)
+    consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message_spezial))
+
+    qname = "%s#%s" % (inqueuename, 'normal')
+    display('listening to %s ...' % qname)
+    channel = messaging.setup_queue(qname, channel=channel, durable=True)
+    consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message_normal))
+
     signal(SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal(SIGINT, lambda signum, stack_frame: cancel_processing())
-    
+
     if options.debug:
         print "waiting for messages ..."
-    
+
     # Loop while process_messages is True
     while process_messages:
         # Wait for a message
         channel.wait()
-    
+
     channel.close()
     connection.close()
-    
-
-options, args = parse_commandline()
-main(options)
 
 
 if __name__ == '__main__':
