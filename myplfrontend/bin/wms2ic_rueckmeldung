@@ -36,7 +36,7 @@ def parse_commandline():
     
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
     parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
-    parser.add_option('--in', dest="in_queue", help="Beispiel --in=erp.ic-wms.rueckmeldung.')
+    parser.add_option('--in', dest="in_queue", help="Beispiel --in=erp.ic-wms.rueckmeldung.")
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
     parser.add_option('-o', '--output', default='rueckmeldung.log',
@@ -181,19 +181,19 @@ def cancel_processing():
         channel.basic_cancel(consumer_tag)
 
 
-def main(opts):
+def main(opts, args):
     """Setum message consuming."""
     global channel, consumer_tags, options
     options = opts
 
-    inqueuename = "%s#%s" % (option.in_queue, option.lager)
+    inqueuename = "%s#%s" % (options.in_queue, options.lager)
     qname = "%s#%s" % (inqueuename, 'spezial')
-    display('listening to %s ...' % qname)
+    print('listening to %s ...' % qname)
     channel = messaging.setup_queue(qname, channel=channel, durable=True)
     consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message_spezial))
 
     qname = "%s#%s" % (inqueuename, 'normal')
-    display('listening to %s ...' % qname)
+    print('listening to %s ...' % qname)
     channel = messaging.setup_queue(qname, channel=channel, durable=True)
     consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message_normal))
 
