@@ -8,7 +8,6 @@
 # Copyright (c) 2009 HUDORA. All rights reserved.
 
 
-from amqplib import client_0_8 as amqp
 from cs.zwitscher import zwitscher
 from optparse import OptionParser
 from signal import signal, SIGTERM, SIGINT
@@ -68,7 +67,7 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
         # auftrags_position = 
         pos_sql = dict(IRFNR='01',
                        IRKBNR=int(kommiauftragsnr), # take from auftrag
-                       IRKPOS=pos['posnr'],
+                       IRKPOS=int(pos['kommissionierbeleg_position']),
                        IRAUFN=int(auftragsnr),
                        IRAUPO=int(pos['auftrags_position']),
                        IRDFSL=lock_key)
@@ -94,24 +93,49 @@ def decodiere_message(msg):
     """Dekodiert die JSON Message und reichert sie mit den Nötigen weiterführenden Daten an."""
     hugogramm = json.loads(msg.body)
     if options.debug:
+        print
+        print 'vorher:',
         print hugogramm
-    
-    hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr')) 
+
+    hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr'))
     kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
+
+    # HACK für verdrehte positionsnummern:
+    #      Anders als bei der msg, die von mypl kommt, ist hier die auftragsposnr, nicht die kommiposnr enthalten
     positionsmapping = {}
     for pos in kommibeleg.positionen:
-        positionsmapping[pos.kommissionierbeleg_position] = pos.auftrags_position
-    
-    for pos in hugogramm['positionen']:
-        pos['auftrags_position'] = positionsmapping[pos['posnr']]
+        positionsmapping[pos.auftrags_position] = pos.kommissionierbeleg_position
+
+    # HACK für falsch umgewandelte xml2json dictionaries
+    positionen = hugogramm['positionen']
+    if isinstance(positionen, dict):
+        positionen = [positionen]
+        hugogramm['positionen'] = positionen
+
+    positionen_ = []
+    for pos in positionen:
+        print
+        print pos
+        # HACK für falsch umgewandelte xml2json dictionaries
+        if 'position' in pos:
+            pos = pos['position']
+        # HACK für verdrehte positionsnummern
+        pos['auftrags_position'] = pos['posnr']
+        pos['kommissionierbeleg_position'] = positionsmapping[pos['posnr']]
+        positionen_.append(pos)
+    hugogramm['positionen'] = positionen_
+    print
+    print 'nacher:',
+    print hugogramm
     return kommibeleg, hugogramm
     
 
 def log_message(typ, kommibeleg, hugogramm):
     """Information über den vorgang protokollieren."""
+    return
     fd = open(options.output, 'a')
     fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
-                 ','.join(["%d mal %s|%s" % (x['menge'], x['artnr'], x['posnr']) for x in hugogramm['positionen']])))
+                 ','.join(["%d mal %s|%s" % (x['menge'], x['artnr'], x['kommissionierbeleg_position']) for x in hugogramm['positionen']])))
     fd.close()
     
 
@@ -150,8 +174,7 @@ def handle_message_spezial(message):
     """Callback function used by channel.basic_consume for 'nullen'."""
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('nullen', kommibeleg, hugogramm)
-    #dbg erstmal ausgeschaltet: sind noch einige von hand zurückgemeldete kommis im umlauf
-    #zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
+    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
     channel.basic_ack(message.delivery_tag)
     benachrichtigen(kommibeleg, hugogramm)
     lieferscheindruck(kommibeleg)
@@ -161,8 +184,7 @@ def handle_message_normal(message):
     """Callback function used by channel.basic_consume for 'zurueckmelden'."""
     kommibeleg, hugogramm = decodiere_message(message)
     log_message('zurueckmelden', kommibeleg, hugogramm)
-    #dbg erstmal ausgeschaltet: sind noch einige von hand zurückgemeldete kommis im umlauf
-    #zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
+    zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
 
     channel.basic_ack(message.delivery_tag)
     lieferscheindruck(kommibeleg)

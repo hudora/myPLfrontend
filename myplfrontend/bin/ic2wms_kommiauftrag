@@ -126,11 +126,14 @@ def transfer_kommis(lager):
         for position in softmschein.positionen:
             doc['positionen'].append(dict(menge=int(position.menge_komissionierbeleg),
                                           artnr=position.artnr,
+                                          # !wms2mypl_kommiauftrag erwartet hier die auftragsposition
+                                          # !wms2ic_rueckmeldung erwartet hier die kommibelegposition
                                           posnr=position.auftrags_position,
                                           # text
                                           # EAN
                                           setartikel=(position.setartikel == 1),
                                           kommissionierbeleg_position=position.kommissionierbeleg_position,
+                                          auftrags_position=position.auftrags_position,
                                           kommissionierbelegnr=position.kommissionierbelegnr,
                                           satznummer=position.satznr))
 
