@@ -27,6 +27,10 @@ options = None
 consumer_tags = []
 
 
+class SetArtikelError(Exception):
+    pass
+
+
 def parse_commandline():
     """Parse the commandline and return information."""
     
@@ -114,6 +118,9 @@ def decodiere_message(msg):
 
     positionen_ = []
     for pos in positionen:
+        # nochnen HACK: Setartikel, die nicht korrekt aufgelöst wurden
+        if pos['posnr'] == None:
+            raise SetArtikelError(hugogramm['kommiauftragnr'])
         print
         print pos
         # HACK für falsch umgewandelte xml2json dictionaries
@@ -182,7 +189,11 @@ def handle_message_spezial(message):
 
 def handle_message_normal(message):
     """Callback function used by channel.basic_consume for 'zurueckmelden'."""
-    kommibeleg, hugogramm = decodiere_message(message)
+    try:
+        kommibeleg, hugogramm = decodiere_message(message)
+    except SetArtikelError, e:
+        print('zurueckmelden fehlgeschlagen', str(e), message)
+        return
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
 
