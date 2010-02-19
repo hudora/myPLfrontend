@@ -133,7 +133,7 @@ def kep(doc):
     # Gurtmass
     girths = list(reduce(itertools.chain, (get_packet_girth(menge=pos['menge'], artnr=pos['artnr'])
                                            for pos in positions)))
-    if max(girths) > 3000:
+    if girths and max(girths) > 3000:
         return False
     return True
 
