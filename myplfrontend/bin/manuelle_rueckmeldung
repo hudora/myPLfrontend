@@ -19,13 +19,22 @@ def parse_commandline():
     parser.description = __doc__
 
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
-    parser.add_option('--audit-trail')
+    parser.add_option('--grund', help=u'Grund für das manuelle Rückmelden')
+    parser.add_option('--user', help=u'Der verantwortliche Nutzer')
     parser.add_option('-o', '--out', dest='zielqueue', default='erp.cs-wms.rueckmeldung#normal',
                       help=u'Zielqueue [default: %default]')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
 
-    return parser.parse_args()
+    opts, args = parser.parse_args()
+    if not args:
+        parser.error("Bitte mindestens eine KB Nummer angeben. Bsp: 3113127")
+    if not opts.grund:
+        parser.error("'--grund' nicht angegeben")
+    if not opts.user:
+        parser.error("'--user' nicht angegeben")
+    opts.audit_trail = u"%s: %s" % (opts.user, opts.grund)
+    return opts, args
 
 
 def main(options, args):
@@ -33,7 +42,7 @@ def main(options, args):
     for kommiauftragnr in args:
         myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr,
                                                      zielqueue=options.zielqueue,
-                                                     audit_trail=options.audit_trail)
+                                                     audit_trail=options.grund)
 
 
 if __name__ == '__main__':
