@@ -110,27 +110,13 @@ def decodiere_message(msg):
     for pos in kommibeleg.positionen:
         positionsmapping[pos.auftrags_position] = pos.kommissionierbeleg_position
 
-    # HACK für falsch umgewandelte xml2json dictionaries
-    positionen = hugogramm['positionen']
-    if isinstance(positionen, dict):
-        positionen = [positionen]
-        hugogramm['positionen'] = positionen
-
-    positionen_ = []
-    for pos in positionen:
-        # nochnen HACK: Setartikel, die nicht korrekt aufgelöst wurden
+    for pos in hugogramm['positionen']:
+        # HACK: Setartikel, die nicht korrekt aufgelöst wurden
         if pos['posnr'] == None:
             raise SetArtikelError(hugogramm['kommiauftragnr'])
-        print
-        print pos
-        # HACK für falsch umgewandelte xml2json dictionaries
-        if 'position' in pos:
-            pos = pos['position']
         # HACK für verdrehte positionsnummern
         pos['auftrags_position'] = pos['posnr']
         pos['kommissionierbeleg_position'] = positionsmapping[pos['posnr']]
-        positionen_.append(pos)
-    hugogramm['positionen'] = positionen_
     print
     print 'nacher:',
     print hugogramm
