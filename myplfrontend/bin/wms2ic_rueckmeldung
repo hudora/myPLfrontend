@@ -27,6 +27,7 @@ channel = None
 options = None
 consumer_tags = []
 
+zwitscher_user = "mypl"
 
 class SetArtikelError(Exception):
     pass
@@ -63,7 +64,7 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
     rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
                         % int(kommiauftragsnr))
     if rows:
-        cs.zwitscher.zwitscher("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!" % kommiauftragsnr, 'mypl')
+        cs.zwitscher.zwitscher("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!" % kommiauftragsnr, username=zwitscher_user)
         fd = open(options.output, 'a')
         fd.write("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!\n" % kommiauftragsnr)
         fd.close()
@@ -96,10 +97,17 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
 
 def decodiere_message(msg):
     """Dekodiert die JSON Message und reichert sie mit den Nötigen weiterführenden Daten an."""
+    global zwitscher_user
+
     hugogramm = json.loads(msg.body)
 
     hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr'))
     kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
+
+    if kommibeleg.lager == 38:
+        zwitscher_user = 'maeuler'
+    else:
+        zwitscher_user = 'mypl'
 
     # Der Rückmelde Code aus dem myPL gibt derzeit noch die kommissionierbeleg_position als posnr zurück
     if kommibeleg.lager != 38:
@@ -111,6 +119,8 @@ def decodiere_message(msg):
 
     for pos in hugogramm['positionen']:
         # Setartikel, können wir noch nicht verarbeiten
+	if not 'posnr' in pos:
+            raise SetArtikelError(hugogramm['kommiauftragnr'])
         if pos['posnr'] == None:
             raise SetArtikelError(hugogramm['kommiauftragnr'])
         pos['auftrags_position'] = pos['posnr']
@@ -157,7 +167,7 @@ def benachrichtigen(kommibeleg, hugogramm):
     """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
     cs.zwitschr.zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
-                                        hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
+                                        hugogramm['audit_trail'],  kommibeleg.name1), username=zwitscher_user)
 
 
 def handle_message_spezial(message):
@@ -176,7 +186,8 @@ def handle_message_normal(message):
         kommibeleg, hugogramm = decodiere_message(message)
     except SetArtikelError, e:
         msg = u'%s Kommiauftrag mit Setartikel kann nicht zurückgemeldet werden' % unicode(e)
-        cs.zwitscher.zwitscher(msg, username='mypl')
+        cs.zwitscher.zwitscher(msg, username=zwitscher_user)
+        channel.basic_ack(message.delivery_tag)
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
