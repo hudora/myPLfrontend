@@ -121,7 +121,7 @@ def decodiere_message(msg):
     print 'nacher:',
     print hugogramm
     return kommibeleg, hugogramm
-    
+
 
 def log_message(typ, kommibeleg, hugogramm):
     """Information über den vorgang protokollieren."""

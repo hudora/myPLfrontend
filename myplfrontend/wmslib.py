@@ -24,7 +24,9 @@ def kommibeleg_zurueckmelden(kommiauftragnr, zielqueue='erp.cs-wms.rueckmeldung#
     doc['positionen'] = []
     kommibeleg = husoftm.lieferscheine.Kommibeleg(kommiauftragnr)
     for pos in kommibeleg.positionen:
-        doc['positionen'].append({'posnr': pos.kommissionierbeleg_position,
+        doc['positionen'].append({'posnr': pos.auftrags_position,
+                                  'kommissionierbeleg_position': pos.kommissionierbeleg_position,
+                                  'auftrags_position': pos.auftrags_position,
                                   'menge': int(pos.menge_komissionierbeleg),
                                   'artnr': pos.artnr})
     messaging.publish(doc, zielqueue)
