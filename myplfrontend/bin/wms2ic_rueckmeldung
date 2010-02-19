@@ -8,17 +8,18 @@
 # Copyright (c) 2009 HUDORA. All rights reserved.
 
 
-from cs.zwitscher import zwitscher
 from optparse import OptionParser
 from signal import signal, SIGTERM, SIGINT
 import Pyro.util
 import cs.caching
+import cs.messaging as messaging
+import cs.zwitscher
 import datetime
 import husoftm.connection
 import husoftm.kunden
 import husoftm.lieferscheine
 import simplejson as json
-import cs.messaging as messaging
+
 
 # For exiting the proessing loop
 process_messages = True
@@ -62,7 +63,7 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
     rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
                         % int(kommiauftragsnr))
     if rows:
-        cs.zwitscher.zwitscher("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!" % kommiauftragsnr, 'mypl') 
+        cs.zwitscher.zwitscher("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!" % kommiauftragsnr, 'mypl')
         fd = open(options.output, 'a')
         fd.write("%s: Kommiauftrag schon in ISR00, wird nicht zurueckgemeldet!\n" % kommiauftragsnr)
         fd.close()
@@ -96,30 +97,26 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
 def decodiere_message(msg):
     """Dekodiert die JSON Message und reichert sie mit den Nötigen weiterführenden Daten an."""
     hugogramm = json.loads(msg.body)
-    if options.debug:
-        print
-        print 'vorher:',
-        print hugogramm
 
     hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr'))
     kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
 
-    # HACK für verdrehte positionsnummern:
-    #      Anders als bei der msg, die von mypl kommt, ist hier die auftragsposnr, nicht die kommiposnr enthalten
+    # Der Rückmelde Code aus dem myPL gibt derzeit noch die kommissionierbeleg_position als posnr zurück
+    if kommibeleg.lager != 38:
+        raise RuntimeError("Erst den myPL Rueckmeldecode anpassen!")
+
     positionsmapping = {}
     for pos in kommibeleg.positionen:
         positionsmapping[pos.auftrags_position] = pos.kommissionierbeleg_position
 
     for pos in hugogramm['positionen']:
-        # HACK: Setartikel, die nicht korrekt aufgelöst wurden
+        # Setartikel, können wir noch nicht verarbeiten
         if pos['posnr'] == None:
             raise SetArtikelError(hugogramm['kommiauftragnr'])
-        # HACK für verdrehte positionsnummern
         pos['auftrags_position'] = pos['posnr']
         pos['kommissionierbeleg_position'] = positionsmapping[pos['posnr']]
-    print
-    print 'nacher:',
-    print hugogramm
+    if options.debug:
+        print hugogramm
     return kommibeleg, hugogramm
 
 
@@ -130,7 +127,7 @@ def log_message(typ, kommibeleg, hugogramm):
     fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                  ','.join(["%d mal %s|%s" % (x['menge'], x['artnr'], x['kommissionierbeleg_position']) for x in hugogramm['positionen']])))
     fd.close()
-    
+
 
 def lieferscheindruck(kommibeleg, hugogramm=None):
     """Druckauftrag in die Lieferscheindruck Queue schicken."""
@@ -159,7 +156,7 @@ def lieferscheindruck(kommibeleg, hugogramm=None):
 def benachrichtigen(kommibeleg, hugogramm):
     """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
-    zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
+    cs.zwitschr.zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                                         hugogramm['audit_trail'],  kommibeleg.name1), username='mypl')
 
 
@@ -178,7 +175,8 @@ def handle_message_normal(message):
     try:
         kommibeleg, hugogramm = decodiere_message(message)
     except SetArtikelError, e:
-        print('zurueckmelden fehlgeschlagen', str(e), message)
+        msg = u'%s Kommiauftrag mit Setartikel kann nicht zurückgemeldet werden' % unicode(e)
+        cs.zwitscher.zwitscher(msg, username='mypl')
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
