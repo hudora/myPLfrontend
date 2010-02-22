@@ -1,0 +1,168 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""wmsfilter_setartikel --- Describe Tool here äöü---
+"""
+
+# myplfrontend/bin/wmsfilter_setartikel
+# Created by Christoph Borgolte on 2010-02-22 for HUDORA.
+# Copyright (c) 2010 HUDORA. All rights reserved.
+
+from optparse import OptionParser
+import cs.messaging as messaging
+import cs.masterdata.article
+import datetime
+import huTools.NetStringIO as NetStringIO
+import os
+import os.path
+import signal
+import simplejson as json
+import sys
+import time
+
+# globals
+options = None
+process_messages = True
+channel = None
+consumer_tags = []
+message_count = 0
+
+
+def display(msg):
+    """Display messages based on command line options."""
+    # TODO move to messaging.tools (?)
+    if options.debug or (not options.quiet):
+        print (msg)
+        sys.stdout.flush()
+
+
+def write_journal(doc):
+    """Write journal entrys of incoming messages."""
+    # TODO move to messaging.tools (?)
+    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
+    if options.debug:
+        print logdata
+    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+    nstring.write(logdata)
+    nstring.file.close()
+
+
+def filter_message(message):
+    """Löst Setartikel in seine Komponenten auf und ersetzt damit die vorhandenen Positionen.
+
+    Converts it back to a python type from its json representation first.
+    Returns the python type.
+    """
+    doc = messaging.decode(message.body)
+    positions = []
+    for pos in doc['positionen']:
+        tmp = dict(pos)
+        components = cs.masterdata.article.komponentenresolver(pos['menge'], pos['artnr'])
+        for subqty, subartnr in components:
+            tmp['artnr'] = subartnr
+            tmp['menge'] = subqty
+            positions.append(tmp)
+    doc['positionen'] = positions
+    return doc
+
+
+def handle_message(message):
+    """Callback function used by channel.basic_consume for processing incoming messages.
+
+    Processed messages will acknowledged, that is they will be deleted from the queue by the messaging system.
+    """
+    global message_count
+
+    # call filter and publish to outgoing queues
+    doc = filter_message(message)
+    for queue in options.out_queues:
+        messaging.publish(doc, routing_key=queue, chan=channel, exchange=None, durable=options.durable, auto_delete=options.auto_delete)
+
+    # acknowledged message
+    message.channel.basic_ack(message.delivery_tag)
+    message_count += 1
+
+
+# Might be used as a signal hander
+def cancel_processing():
+    """ Stop consuming messages from RabbitMQ """
+    global process_messages
+
+    # Do this so we exit our main loop
+    process_messages = False
+    display("Exiting")
+    # Tell the channel you dont want to consume anymore
+    for consumer_tag in consumer_tags:
+        channel.basic_cancel(consumer_tag)
+
+
+def parse_commandline():
+    """Parse the commandline and return information."""
+
+    parser = OptionParser(version=True)
+    parser.description = __doc__
+    parser.add_option('--in', dest="in_queues", action='append',
+                      help='Name einer Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
+                      +'angegeben, wird aus mehreren Queues gelesen. Beispiel --in=erp.ic-wms.warenzugang.')
+    parser.add_option('--out', dest="out_queues", action='append',
+                      help='Name der Queue, in die geschrieben werden soll. Wird diese Parameter mehrfach '
+                      +'angegeben, wird die gefilterte Nachricht in alle dieser Queues geschickt.')
+    parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
+    parser.add_option('--durable', action='store_true', default=True, help='Durable out-queue')
+    parser.add_option('--auto-delete', action='store_true', default=False, help='auto_delete out-queue')
+    parser.add_option('-d', '--debug', action='store_true', help='Enables debugging mode')
+    parser.add_option('-n', '--dry-run', action='store_true',
+                      help='Doesnt write anything to file system. No acknowledgment of messages.')
+
+    opts, args = parser.parse_args()
+    if len(args) > 0: # we expect no non option arguments
+        parser.error('incorrect number of arguments')
+
+    if not opts.in_queues:
+        parser.error("'--in' nicht gesetzt")
+    if not opts.out_queues:
+        parser.error("'--out' nicht gesetzt")
+
+    return opts, args
+
+
+def main(opts, args):
+    """This implements the actual programm functionality"""
+    global options
+    global channel
+    options = opts
+
+    channel = None
+    # configure incoming queues
+    for qname in options.in_queues:
+        channel = messaging.setup_queue(qname, channel=channel, durable=True)
+        consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message))
+        display('listening to queue %s w/ consumer_tag %s on channel %s' % (qname, consumer_tags[-1], channel))
+
+    # configure outgoing queues
+    for qname in options.out_queues:
+        messaging.setup_queue(qname, channel=channel, durable=options.durable, auto_delete=options.auto_delete, exclusive=False)
+
+
+    # catch Signals
+    signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
+    signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
+
+    display("waiting for messages ...")
+
+    # Loop while process_messages is True - could be set to False by signal handlers
+    last_requeue = time.time()
+    while process_messages:
+        # Wait for a message and wait for `handle_message` callback beeing called
+        channel.wait()
+        if time.time() - last_requeue > 3600:
+            # every 3600 seconds Request non-acknowledged messages to be re-delivered
+            channel.basic_recover(requeue=False)
+            last_requeue = time.time()
+            display("%d messages processed, recovering channel" % message_count)
+
+    channel.close()
+    return 0
+
+
+if __name__ == '__main__':
+    main(*parse_commandline())
