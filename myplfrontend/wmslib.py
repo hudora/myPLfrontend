@@ -8,6 +8,9 @@
 # Copyright (c) 2010 HUDORA. All rights reserved.
 
 
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 import husoftm.lieferscheine
 import cs.messaging as messaging
 

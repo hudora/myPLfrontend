@@ -19,7 +19,7 @@ import husoftm.connection
 import husoftm.kunden
 import husoftm.lieferscheine
 import simplejson as json
-
+import myplfrontend.wmslib
 
 # For exiting the proessing loop
 process_messages = True
@@ -185,9 +185,13 @@ def handle_message_normal(message):
     try:
         kommibeleg, hugogramm = decodiere_message(message)
     except SetArtikelError, e:
-        msg = u'%s Kommiauftrag mit Setartikel kann nicht zurückgemeldet werden' % unicode(e)
-        cs.zwitscher.zwitscher(msg, username=zwitscher_user)
+        kommiauftragsnr = int(unicode(e))
+        msg = u'%s Kommiauftrag mit Setartikel kann nicht automatisch zurückgemeldet werden' % kommiauftragsnr
+        #cs.zwitscher.zwitscher(msg, username=zwitscher_user)
         channel.basic_ack(message.delivery_tag)
+        myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr,
+                                                     zielqueue="cs-wms.test.rueckmeldung#38#normal",
+                                                     audit_trail=msg)
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
