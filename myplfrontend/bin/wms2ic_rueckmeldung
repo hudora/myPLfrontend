@@ -119,12 +119,22 @@ def decodiere_message(msg):
 
     for pos in hugogramm['positionen']:
         # Setartikel, können wir noch nicht verarbeiten
-	if not 'posnr' in pos:
+        if not 'posnr' in pos:
             raise SetArtikelError(hugogramm['kommiauftragnr'])
         if pos['posnr'] == None:
             raise SetArtikelError(hugogramm['kommiauftragnr'])
+
+    positionen = []
+    for posnr, (qty, artnr) in cs.masterdata.reunite.reunite(hugogramm['positionen']).items():
+        pos = {}
+        pos['posnr'] = posnr
+        pos['artnr'] = artnr
+        pos['menge'] = qty
         pos['auftrags_position'] = pos['posnr']
         pos['kommissionierbeleg_position'] = positionsmapping[pos['posnr']]
+        positionen.append(pos)
+    hugogramm['positionen'] = positionen
+
     if options.debug:
         print hugogramm
     return kommibeleg, hugogramm
@@ -187,7 +197,7 @@ def handle_message_normal(message):
     except SetArtikelError, e:
         kommiauftragsnr = int(unicode(e))
         msg = u'%s Kommiauftrag mit Setartikel kann nicht automatisch zurückgemeldet werden' % kommiauftragsnr
-        #cs.zwitscher.zwitscher(msg, username=zwitscher_user)
+        cs.zwitscher.zwitscher(msg, username=zwitscher_user)
         channel.basic_ack(message.delivery_tag)
         myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr,
                                                      zielqueue="cs-wms.test.rueckmeldung#38#normal",
