@@ -55,9 +55,9 @@ def filter_message(message):
     doc = messaging.decode(message.body)
     positions = []
     for pos in doc['positionen']:
-        tmp = dict(pos)
         components = cs.masterdata.article.komponentenresolver(pos['menge'], pos['artnr'])
         for subqty, subartnr in components:
+            tmp = dict(pos)
             tmp['artnr'] = subartnr
             tmp['menge'] = subqty
             positions.append(tmp)
