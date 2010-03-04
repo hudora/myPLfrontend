@@ -56,8 +56,11 @@ def filter_message(message):
     anliefertermin = doc['anliefertermin']
     tm = time.strptime(anliefertermin,"%Y-%m-%d")
     anliefertermin = datetime.date(*tm[:3])
-    if datetime.date.today() > anliefertermin:
-        anliefertermin = datetime.date.today().strftime("%Y-%m-%d")
+    if datetime.date.today() + datetime.timedelta(days=2) > anliefertermin:
+        anliefertermin = datetime.date.today() + datetime.timedelta(days=2)
+        anliefertermin = anliefertermin.strftime("%Y-%m-%d")
+        display("Liefertermin geaendert: %s -> %s" % (doc['anliefertermin'], anliefertermin))
+        doc['anliefertermin'] = anliefertermin
     return doc
 
 
