@@ -131,12 +131,12 @@ def _send_delete_to_kernel(path, data):
     """Send a DELETE request to the kernel."""
     httpconn = httplib2.Http()
     resp, content = httpconn.request(KERNELURL + '/%s' % path, 'DELETE', data)
-    if int(resp.status) == 204:
+    if resp.status == 204:
         return content
-    elif int(resp.status) == 404:
+    elif resp.status == 404:
         return None
     else:
-        raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (resp.status, content))
+        raise RuntimeError("Can't get reply from kernel, Status: %d, Body: %s" % (resp.status, content))
 
 
 def get_abc():
