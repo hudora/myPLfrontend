@@ -52,15 +52,27 @@ def filter_message(message):
     Returns the python type.
     """
     doc = messaging.decode(message.body)
+    if 'fixtermin' in doc:
+        return doc
     # replace code below with something more meaningful ...
     anliefertermin = doc['anliefertermin']
     tm = time.strptime(anliefertermin,"%Y-%m-%d")
     anliefertermin = datetime.date(*tm[:3])
-    if datetime.date.today() + datetime.timedelta(days=2) > anliefertermin:
-        anliefertermin = datetime.date.today() + datetime.timedelta(days=2)
+    min_anliefertermin = datetime.date.today()
+    # Donnerstags 5 Tage drauf
+    if min_anliefertermin.isoweekday() == 4:
+        min_anliefertermin += datetime.timedelta(days=3)
+    # Freitags 4 Tage drauf
+    elif min_anliefertermin.isoweekday() == 5:
+        min_anliefertermin += datetime.timedelta(days=2)
+    min_anliefertermin += datetime.timedelta(days=2)
+
+    if min_anliefertermin >= anliefertermin:
+        anliefertermin = min_anliefertermin
         anliefertermin = anliefertermin.strftime("%Y-%m-%d")
         display("Liefertermin geaendert: %s -> %s" % (doc['anliefertermin'], anliefertermin))
         doc['anliefertermin'] = anliefertermin
+
     return doc
 
 
