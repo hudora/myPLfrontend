@@ -15,7 +15,7 @@ import husoftm.lieferscheine
 import cs.messaging as messaging
 
 
-def kommibeleg_zurueckmelden(kommiauftragnr, zielqueue='erp.cs-wms.rueckmeldung#normal', audit_trail=''):
+def kommibeleg_zurueckmelden(kommiauftragnr, zielqueue='erp.cs-wms.rueckmeldung#normal', audit_trail='', nullen=False):
     """Meldet einen Kommibeleg per Messaging zurück."""
 
     chan = messaging.setup_queue(zielqueue, durable=True)
@@ -27,9 +27,12 @@ def kommibeleg_zurueckmelden(kommiauftragnr, zielqueue='erp.cs-wms.rueckmeldung#
     doc['positionen'] = []
     kommibeleg = husoftm.lieferscheine.Kommibeleg(kommiauftragnr)
     for pos in kommibeleg.positionen:
+        menge = int(pos.menge_komissionierbeleg)
+        if nullen:
+            menge = 0
         doc['positionen'].append({'posnr': pos.auftrags_position,
                                   'kommissionierbeleg_position': pos.kommissionierbeleg_position,
                                   'auftrags_position': pos.auftrags_position,
-                                  'menge': int(pos.menge_komissionierbeleg),
+                                  'menge': menge,
                                   'artnr': pos.artnr})
     messaging.publish(doc, zielqueue)
