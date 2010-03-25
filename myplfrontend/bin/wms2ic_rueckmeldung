@@ -181,6 +181,19 @@ def benachrichtigen(kommibeleg, hugogramm):
                                         hugogramm['audit_trail'],  kommibeleg.name1), username=zwitscher_user)
 
 
+def create_hulog_msg(kommibeleg, hugogramm):
+    fields = ['name1', 'name2', 'strasse', 'plz', 'ort', 'land']
+    doc = dict((field, getattr(kommibeleg, field)) for field in fields)
+    doc['lieferscheinnr'] = kommibeleg.kommissionierbelegnr
+    doc['spedition'] = hugogramm['spedition']
+    doc.update(hugogramm)
+    msg = messaging.empty_message('myplfrontend.bin.wms2ic_rueckmeldung',
+                                  guid='myplfrontend.huLOG-%s' % kommibeleg.kommissionierbelegnr,
+                                  audit_info=u'Anlegen der huLOG Trackinginfos')
+    msg.update(doc)
+    messaging.publish(msg, 'hulog.lieferung')
+
+
 def handle_message_spezial(message):
     """Callback function used by channel.basic_consume for 'nullen'."""
     kommibeleg, hugogramm = decodiere_message(message)
@@ -205,6 +218,8 @@ def handle_message_normal(message):
                                                      audit_trail=msg)
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
+    if kommibeleg.lager == 38:
+        create_hulog_msg(kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
 
     channel.basic_ack(message.delivery_tag)
