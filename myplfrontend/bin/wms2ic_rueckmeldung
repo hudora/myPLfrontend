@@ -218,12 +218,12 @@ def handle_message_normal(message):
                                                      audit_trail=msg)
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
-    if kommibeleg.lager == 38:
-        create_hulog_msg(kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
-
     channel.basic_ack(message.delivery_tag)
     lieferscheindruck(kommibeleg)
+    if kommibeleg.lager == 38:
+        create_hulog_msg(kommibeleg, hugogramm)
+
 
 
 # This might go somewhere like a signal handler
