@@ -14,6 +14,7 @@ import Pyro.util
 import cs.caching
 import cs.messaging as messaging
 import cs.zwitscher
+import cs.masterdata.reunite
 import cs.masterdata
 import datetime
 import husoftm.connection
@@ -102,6 +103,10 @@ def decodiere_message(msg):
 
     hugogramm = json.loads(msg.body)
 
+    # trackingnummern übernehmen, für huLOG messages
+    trackingnrn = [{'trackingnr': pos['nve']} for pos in hugogramm['positionen']]
+    hugogramm['trackingnr'] = trackingnrn
+
     hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr'))
     kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
 
@@ -182,11 +187,12 @@ def benachrichtigen(kommibeleg, hugogramm):
 
 
 def create_hulog_msg(kommibeleg, hugogramm):
+    """Erzeugt ein Nachricht an huLOG, um dort eine Sendung anzulegen."""
     fields = ['name1', 'name2', 'strasse', 'plz', 'ort', 'land']
     doc = dict((field, getattr(kommibeleg, field)) for field in fields)
     doc['lieferscheinnr'] = kommibeleg.kommissionierbelegnr
     doc['spedition'] = hugogramm['spedition']
-    doc.update(hugogramm)
+    doc['positionen'] = hugogramm['trackingnr']
     msg = messaging.empty_message('myplfrontend.bin.wms2ic_rueckmeldung',
                                   guid='myplfrontend.huLOG-%s' % kommibeleg.kommissionierbelegnr,
                                   audit_info=u'Anlegen der huLOG Trackinginfos')
