@@ -85,7 +85,7 @@ class Kerneladapter(object):
     def __init__(self, kernel="http://hurricane.local.hudora.biz:8000",
                        couchdbserver="http://couchdb.local.hudora.biz:5984"):
         self.kernel = kernel
-        self.couchdbserver = self.couchdbserver
+        self.couchdbserver = couchdbserver
 
     def _get(self, path):
         """
@@ -112,8 +112,7 @@ class Kerneladapter(object):
         Der Rückgabewert ist ein dict.
         """
         
-        encoded_data = json.dumps(kwargs)
-
+        encoded_data = json.dumps(kwargs, separators=(',', ':'))
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'POST', body=encoded_data)
 
@@ -293,14 +292,14 @@ class Kerneladapter(object):
     
     ### P O S T
     
-    def get_movementlist(self):
+    def get_next_movement(self, **kwargs):
         """Get movement (or retrieval)"""
-        movement = self._post('/movement')
+        movement = self._post('movement', **kwargs)
         return movement
     
     def commit_movement(self, movementid):
         """Movement zurückmelden"""
-        return self._post('/movement/%s' % movementid)
+        return self._post('movement/%s' % movementid)
     
     def set_kommiauftrag_priority(self, kommiauftragnr, begruendung, priority):
         """Changes the priority of a Kommiauftrag."""
