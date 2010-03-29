@@ -148,7 +148,6 @@ def decodiere_message(msg):
 
 def log_message(typ, kommibeleg, hugogramm):
     """Information über den vorgang protokollieren."""
-    return
     fd = open(options.output, 'a')
     fd.write("%s %s %s %s\n" % (typ, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                  ','.join(["%d mal %s|%s" % (x['menge'], x['artnr'], x['kommissionierbeleg_position']) for x in hugogramm['positionen']])))
@@ -219,9 +218,7 @@ def handle_message_normal(message):
         msg = u'%s Kommiauftrag mit Setartikel kann nicht automatisch zurückgemeldet werden' % kommiauftragsnr
         cs.zwitscher.zwitscher(msg, username=zwitscher_user)
         channel.basic_ack(message.delivery_tag)
-        myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr,
-                                                     zielqueue="cs-wms.test.rueckmeldung#38#normal",
-                                                     audit_trail=msg)
+        #myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr, zielqueue="cs-wms.test.rueckmeldung#38#normal", audit_trail=msg)
         return
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
