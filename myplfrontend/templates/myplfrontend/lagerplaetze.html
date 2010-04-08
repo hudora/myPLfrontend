@@ -10,19 +10,11 @@ Pl&auml;tze, sortiert nach Höhe, Status und Pr&auml;ferenz
 {% endblock%}
 
 {% block content %}
-<p>
-<i>
-Je h&ouml;her die Pr&auml;ferenz, desto eher werden die Pl&auml;tze belegt.<br />
+<p><i>Je h&ouml;her die Pr&auml;ferenz, desto eher werden die Pl&auml;tze belegt.<br />
 Pl&auml;tze mit <strong>Pr&auml;ferenz 0</strong> werden nie automatisch belegt. 
-</i>
-</p>
-<p>
-<a href="#unbebucht">Zu den unbebuchten Plätzen</a> <!-- XXX maybe remove this link, since its destination is just two lines away -->
-<br />
-<a href="#bebucht">Zu den bebuchten Plätzen</a>
-<br />
-<br />
-</p>
+</i></p>
+
+<p><a href="#unbebucht">Zu den unbebuchten Plätzen</a><br /><a href="#bebucht">Zu den bebuchten Plätzen</a></p>
 
 <div id="info">
     <h1><a name="unbebucht">Unbebuchte Plätze</a></h1>

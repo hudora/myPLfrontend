@@ -7,61 +7,79 @@ from django.contrib.auth.decorators import permission_required
 from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
+from django.views.decorators.cache import cache_page
+
 from huTools.robusttypecasts import float_or_0
 from hudjango.auth.decorators import require_login
-from myplfrontend.forms import palletheightForm
+from myplfrontend.forms import PalletHeightForm
 
 import cs.masterdata.article
+import cs.printing
 import cs.zwitscher
 import django.views.decorators.http
 import husoftm.bestaende
 import itertools
+# import mypl.models
+import myplfrontend.belege
 import myplfrontend.kernelapi
+from myplfrontend.kernelapi import Kerneladapter
 import myplfrontend.tools
 
 
 def _get_locations_by_height():
-    """Returns a dict with location information of all locations.
-
-    Keys of that dict are 'bebucht' and 'unbebucht',
-    values are again dictionaries containing locations belonging to a given height."""
+    """
+    Erzeuge ein Tupel mit den bebuchten und unbebuchten Plätzen.
+    
+    Die Elemente des Tupels sind Dictionaries, deren Schlüssel die Platzhöhe
+    und deren Keys Listen mit Informationen über die Plätze sind.
+    
+    Beispiel:
+    ({1000: [{'name': '182503', 'preference': 6}],
+      2000: [{'name': '032003', 'preference': 6},
+             {'name': '042503', 'preference': 6},
+             {'name': '043603', 'preference': 6}]
+      },
+      {1050: [{'name': '011503', 'preference': 1},
+              {'name': '053603', 'preference': 6}]
+    })
+    
+    Plätze mit einer Präferenz < 1 werden nicht berücksichtigt.
+    """
+    
+    kerneladapter = Kerneladapter()
     booked, unbooked = {}, {}
-
-    # i suspect having a server-side (erlang) 'location_detail_list' would provide a great speedup here
-    for location in myplfrontend.kernelapi.get_location_list():
-        info = myplfrontend.kernelapi.get_location(location)
+    for location in kerneladapter.get_location_list():
+        info = kerneladapter.get_location(location)
         if int(info['preference']) < 1:
             continue
-        loc_info = dict(name=info['name'], preference=info['preference'])
-        height = info['height']
         if info['reserved_for'] or info['allocated_by']:
-            booked.setdefault(height, []).append(loc_info)
+            tmp = booked
         else:
-            unbooked.setdefault(height, []).append(loc_info)
+            tmp = unbooked
+        tmp.setdefault(info['height'], []).append({'name': info['name'], 'preference': info['preference']})
     return booked, unbooked
 
 
+@cache_page(60 * 5)
 def lager_info(request):
-    """Render a page with basic information about the Lager."""
+    """View für die Lager-Informations-Ansicht"""
     
-    kerneladapter = myplfrontent.kernelapi.Kerneladapter()
+    kerneladapter = Kerneladapter()
     anzahl_artikel = len(kerneladapter.get_article_list())
-    
     booked, unbooked = _get_locations_by_height()
     booked = sorted((height, len(loc)) for height, loc in booked.items())
     unbooked = sorted((height, len(loc)) for height, loc in unbooked.items())
     
     num_booked = sum(platz[1] for platz in booked)
     num_unbooked = sum(platz[1] for x in unbooked)
-        
-    ctx = {
-            'anzahl_bebucht': num_booked,
-            'anzahl_unbebucht': num_unbooked,
-            'anzahl_plaetze': num_booked + num_unbooked,
-            'anzahl_artikel': anzahl_artikel,
-            'plaetze_bebucht': booked,
-            'plaetze_unbebucht': unbooked
-    }
+    
+    ctx = {'anzahl_bebucht': num_booked,
+           'anzahl_unbebucht': num_unbooked,
+           'anzahl_plaetze': num_booked + num_unbooked,
+           'anzahl_artikel': anzahl_artikel,
+           'plaetze_bebucht': booked,
+           'plaetze_unbebucht': unbooked
+          }
     
     extra_info = kerneladapter.get_statistics()
     extra_info['oldest_movement'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_movement'])
@@ -70,14 +88,17 @@ def lager_info(request):
     return render_to_response('myplfrontend/lager_info.html', ctx, context_instance=RequestContext(request))
 
 
+@cache_page(60 * 5)
 def info_panel(request):
     """Renders a page, that shows an info panel for the employees in the store."""
-    pipeline = [myplfrontend.kernelapi.get_kommiauftrag(kommi) for kommi in myplfrontend.kernelapi.get_kommiauftrag_list()]
+    
+    kerneladapter = Kerneladapter()
+    pipeline = (kerneladapter.get_kommiauftrag(kommi) for kommi in kerneladapter.get_kommiauftrag_list())
     for kommi in pipeline:
         kommi['orderlines_count'] = len(kommi.get('orderlines', []))
-
+    
     db = myplfrontend.tools.get_pickinfo_from_pipeline_data(pipeline)
-
+    
     # FIXME: Der Code hier beruht noch teilweise auf den Daten, die aus der zugeh. Django DB kamen, zB. postions['done'] wurde vorher
     # aus dieser DB berechnet. Wie können wir die erledigten Positionen aus dem Kernel / couchdb / ... erhalten?
     
@@ -96,89 +117,101 @@ def info_panel(request):
     return render_to_response('myplfrontend/info_panel.html',
                               {'pipeline': pipeline, 'db': db, 'positions': positions},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 5)
 def artikel_heute(request):
-    """Renders a view of all articles and quantities that have to be shipped today"""
-
+    """View für Übersichtsseite mit den heute zu verschickenden Artikeln"""
+    
+    kerneladapter = Kerneladapter()
+    
     # summarize product quantities
     products = {}
     for komminr in myplfrontend.kernelapi.get_kommiauftrag_list():
-        kommi = myplfrontend.kernelapi.get_kommiauftrag(komminr)
+        kommi = kerneladapter.get_kommiauftrag(komminr)
         if kommi['shouldprocess'] == 'yes':
             for orderline in kommi['orderlines']:
                 artnr = orderline['artnr']
                 products[artnr] = products.get(artnr, 0) + orderline['menge']
-
+    
     artikel_heutel = []
     for artnr, quantity in products.items():
         product = cs.masterdata.article.eap(artnr)
         if product:
-            total_weight = quantity * float_or_0(product["package_weight"]) / 1000. # kg
+            total_weight = quantity * float_or_0(product["package_weight"]) / 1000.0
             total_volume = quantity * float_or_0(product["package_volume_liter"])
             total_palettes = quantity / float_or_0(product["palettenfaktor"], default=1.0)
-            artikel_heutel.append({'quantity': quantity, 'artnr': artnr, 'name': product["name"],
-                                   'palettenfaktor': product["palettenfaktor"], 'total_weight': total_weight,
-                                   'total_volume': total_volume, 'paletten': total_palettes})
+            artikel_heutel.append({'quantity': quantity,
+                                   'artnr': artnr,
+                                   'name': product['name'],
+                                   'palettenfaktor': product['palettenfaktor'],
+                                   'total_weight': total_weight,
+                                   'total_volume': total_volume,
+                                   'paletten': total_palettes})
         else:
-            cs.zwitscher.zwitscher('%s: Nicht in CouchDB. OMG! #error' % artnr, username='mypl')
+            cs.zwitscher.zwitscher('%s: eAP nicht in CouchDB. OMG! #error' % artnr, username='mypl')
     return render_to_response('myplfrontend/artikel_heute.html', {'artikel_heute': artikel_heutel},
                               context_instance=RequestContext(request))
-    
 
+@cache_page(60 * 5)
 def abc(request):
-    """Render ABC Classification."""
+    """View für ABC-Klassifizierung"""
+    
+    kerneladapter = Kerneladapter()
     klasses = {}
-    for name, klass in myplfrontend.kernelapi.get_abc().items():
+    for name, klass in kerneladapter.get_abc().items():
         tmp = []
-        for (quantity, artnr) in klass:
-            product_detail = myplfrontend.kernelapi.get_article(artnr)
+        for quantity, artnr in klass:
+            product_detail = kerneladapter.get_article(artnr)
             full_quantity = product_detail["full_quantity"]
-            nves_count = len(product_detail["muis"])
-            tmp.append((quantity, full_quantity, artnr, nves_count))
+            nve_count = len(product_detail["muis"])
+            tmp.append((quantity, full_quantity, artnr, nve_count))
         klasses[name] = tmp
     return render_to_response('myplfrontend/abc.html', {'klasses': klasses},
                               context_instance=RequestContext(request))
 
 
+@cache_page(60 * 5)
 def penner(request):
-    """Render Products with no recent activity."""
-    abc_articles = set(artnr for (m, artnr) in itertools.chain(*myplfrontend.kernelapi.get_abc().values()))
-    lagerbestand = set(myplfrontend.kernelapi.get_article_list())
-    artnrs = lagerbestand - abc_articles
+    """View für Penner-Übersicht (Artikel ohne Aktivität in der letzten Zeit)"""
+    
+    kerneladapter = Kerneladapter()
+    abc_articles = set(artnr for (m, artnr) in itertools.chain(*kerneladapter.get_abc().values()))
+    lagerbestand = set(kerneladapter.get_article_list())
     
     pennerliste = []
-    for artnr in artnrs:
-        product_detail = myplfrontend.kernelapi.get_article(artnr)
-        full_quantity = product_detail["full_quantity"]
-        nves_count = len(product_detail["muis"])
-        pennerliste.append((nves_count, full_quantity, artnr))
-    pennerliste.sort(reverse=True)
-    return render_to_response('myplfrontend/penner.html', {'pennerliste': pennerliste},
+    for artnr in (lagerbestand - abc_articles):
+        product_detail = kerneladapter.get_article(artnr)
+        full_quantity = product_detail['full_quantity']
+        nve_count = len(product_detail['muis'])
+        pennerliste.append((nve_count, full_quantity, artnr))
+    return render_to_response('myplfrontend/penner.html',
+                              {'pennerliste': sorted(pennerliste, reverse=True)},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 5)
 def lagerplaetze(request):
-    """Render a list of all Lagerplätze."""
-    # TODO: rewrite using http://hurricane.local.hudora.biz:8000/location
+    """View für Übersicht aller Lagerplätze"""
+    
     booked_plaetze, unbooked_plaetze = _get_locations_by_height()
     booked_plaetze = sorted(booked_plaetze.items(), reverse=True)
     unbooked_plaetze = sorted(unbooked_plaetze.items(), reverse=True)
     return render_to_response('myplfrontend/lagerplaetze.html',
                               {'booked': booked_plaetze, 'unbooked': unbooked_plaetze},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 2)
 def lagerplatz_detail(request, location):
-    """Render details for a location."""
-
-    platzinfo = myplfrontend.kernelapi.get_location(location)
-
-    units = []
-    for mui in platzinfo['allocated_by']:
-        units.append(myplfrontend.kernelapi.get_unit(mui))
+    """View für Detailansicht eines Lagerplatzes"""
+    
+    kerneladapter = Kerneladapter()
+    platzinfo = kerneladapter.get_location(location)
+    units = [kerneladapter.get_unit(mui)) for mui in platzinfo['allocated_by']]
     
     # TODO: alle movements und korrekturbuchungen auf diesem Platz zeigen
+    # Und zwar wie?!?
     
     return render_to_response('myplfrontend/platz_detail.html',
                               {'title': 'Lagerplatz %s' % location, 'platzinfo': platzinfo, 'units': units},
@@ -187,8 +220,8 @@ def lagerplatz_detail(request, location):
 
 def show_articles(request, want_softm):
     """Render a list of all articles."""
-    if request.method == 'POST' and 'article' in request.POST:
-        url = './' + request.POST['article']
+    if request.method == 'POST':
+        url = './' + request.POST.get('article', '')
         return HttpResponseRedirect(url)
     
     articles = []
@@ -199,158 +232,154 @@ def show_articles(request, want_softm):
             article['buchbestand'] = husoftm.bestaende.buchbestand(lager=100, artnr=article['artnr'])
         articles.append(article)
     
-    # TODO: Artikel finden, von dneen SoftM denkt, sie wären im myPL, von denen das myPL aber nichts weiss
+    # TODO: Artikel finden, von denen SoftM denkt, sie wären im myPL, von denen das myPL aber nichts weiss
+    # Wie?
     
     title = 'Artikel am Lager'
     if want_softm:
         title += ' mit SoftM Buchbeständen'
-    return render_to_response('myplfrontend/articles.html', {'title': title,
-                                                           'articles': articles,
-                                                           'want_softm': want_softm},
+    return render_to_response('myplfrontend/articles.html',
+                              {'title': title, 'articles': articles, 'want_softm': want_softm},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 5)
 def article_detail(request, artnr):
-    """Render details regarding an article."""
+    """View für Detailansicht eines Artikels"""
     
-    data = myplfrontend.kernelapi.get_article(artnr)
-    myunits = []
-    for mynve in data['muis']:
-        myunits.append(myplfrontend.kernelapi.get_unit(mynve))
-    
-    title = 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr)
-    bestand100 = None
-    try:
-        bestand100 = husoftm.bestaende.bestand(artnr=artnr, lager=100)
-    except:
-        pass
-    
+    kerneladapter = Kerneladapter()
+    article_info = kerneladapter.get_article(artnr)
     return render_to_response('myplfrontend/article_details.html',
-                 {'title': title,
-                  'full_quantity': data['full_quantity'],
-                  'available_quantity': data['available_quantity'],
-                  'pick_quantity': data['pick_quantity'],
-                  'bestand100': bestand100,
-                  'movement_quantity': data['movement_quantity'],
-                  'artnr': artnr, 'myunits': myunits}, context_instance=RequestContext(request))
-    
-
-def article_audit(request, artnr):
-    """Render the Audit-Log (Artikelkonto) of a certain article."""
-    audit = myplfrontend.kernelapi.get_article_audit(artnr)
-    return render_to_response('myplfrontend/article_audit.html',
-                              {'title': 'Artikelkonto %s' % artnr,
-                               'artnr': artnr, 'audit': audit},
+                              {'title': 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr),
+                               'article_info': article_info,
+                               'bestand100': husoftm.bestaende.bestand(artnr=artnr, lager=100),
+                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 5)
+def article_audit(request, artnr):
+    """View für die Ansicht eines Artikelkontos eines Artikels (Audit-Log)"""
+    kerneladapter = Kerneladapter()
+    audit = kerneladapter.get_article_audit(artnr)
+    return render_to_response('myplfrontend/article_audit.html',
+                              {'title': 'Artikelkonto %s' % artnr, 'artnr': artnr, 'audit': audit},
+                              context_instance=RequestContext(request))
+
+
+@cache_page(60 * 5)
 def bewegungen(request):
     """Liste aller offenen Picks und Movements"""
-    movements = []
-    for movementid in sorted(myplfrontend.kernelapi.get_movements_list()):
-        movements.append(myplfrontend.kernelapi.get_movement(movementid))
-    picks = []
-    for pickid in sorted(myplfrontend.kernelapi.get_picks_list()):
-        picks.append(myplfrontend.kernelapi.get_pick(pickid))
-    return render_to_response('myplfrontend/movement_list.html',
-                              {'movements': movements, 'picks': picks},
-                              context_instance=RequestContext(request))
     
+    kerneladapter = Kerneladapter()
+    movements = [kerneladapter.get_movement(movement_id) for movement_id in sorted(kerneladapter.get_movements_list())]
+    picks = [kerneladapter,get_pick(pick_id) for pick_id in sorted(kerneladapter.get_picks_list())]
+    return render_to_response('myplfrontend/movement_list.html', {'movements': movements, 'picks': picks},
+                              context_instance=RequestContext(request))
+
 
 def movement_show(request, mid):
     """Informationen zu einer Bewegung"""
     
-    movement = myplfrontend.kernelapi.get_movement(mid)
+    kerneladapter = Kerneladapter()
+    movement = kerneladapter.get_movement(mid)
     if not movement:
-        raise Http404
+        raise Http404("Kein Movement mit ID %s gefunden" % mid)
+    
     title = 'Movement %s' % mid
     if movement.get('archived'):
         title += ' (archiviert)'
     return render_to_response('myplfrontend/movement_info.html',
                               {'movement': movement, 'title': title},
                               context_instance=RequestContext(request))
-    
+
 
 def pick_show(request, pickid):
     """Informationen zu einem Pick"""
     
-    pick = myplfrontend.kernelapi.get_pick(pickid)
+    kerneladapter = Kerneladapter()
+    pick = kerneladapter.get_pick(pickid)
     if not pick:
-        raise Http404
+        raise Http404("Kein Pick mit ID %s gefunden" % pickid)
     title = 'Pick %s' % pickid
     if pick.get('archived'):
         title += ' (archiviert)'
     return render_to_response('myplfrontend/pick_info.html',
                               {'title': title, 'pick': pick},
                               context_instance=RequestContext(request))
-    
 
+
+@cache_page(60 * 2)
 def unit_list(request):
     """Render a list of all MUIs/NVEs/SSCCs"""
     
-    muis = myplfrontend.kernelapi.get_units_list()
+    kerneladapter = Kerneladapter()
+    muis = kerneladapter.get_units_list()
     return render_to_response('myplfrontend/unit_list.html',
                               {'title': 'Units im Lager', 'muis': sorted(muis)},
                               context_instance=RequestContext(request))
-    
+
 
 def unit_show(request, mui):
-    """Render Details for an Unit."""
+    """View für Detailansicht einer MUI"""
     
-    unit = myplfrontend.kernelapi.get_unit(mui)
+    kerneladapter = Kerneladapter()
+    unit = kerneladapter.get_unit(mui)
     
-    form = None
     if request.method == "POST":
-        form = palletheightForm(request.POST)
+        form = PalletHeightForm(request.POST)
         if unit.get('archived'):
-            #message
             pass
-    
         elif form.is_valid():
-            myplfrontend.kernelapi.set_unit_height(mui, form.cleaned_data['height'])
-    
-    elif not unit.get('archived'):
-        form = palletheightForm({'height': unit.get('height', 1950)})
+            kerneladapter.set_unit_height(mui, form.cleaned_data['height'])
+    else:
+        form = PalletHeightForm({'height': unit.get('height', 1950)})
     
     title = 'Unit %s' % mui
     if unit.get('archived'):
         title += ' (archiviert)'
-    audit = myplfrontend.kernelapi.get_audit('selection/unitaudit', mui)
+    audit = kerneladapter.get_unit_audit(mui)
     return render_to_response('myplfrontend/unit_detail.html',
                               {'title': title,
                                'unit': unit, 'audit': audit,
-                               'paletform': form},
+                               'form': form},
                               context_instance=RequestContext(request))
-    
+
 
 def kommiauftrag_list(request):
-    """Render a view of entries beeing currently processed in the provpipeline."""
-    kommiauftraege_new, kommiauftraege_processing, pipelincutoff = [], [], False
+    """View für Liste der Aufträge in der Provpipeline"""
+    
+    kerneladapter = Kerneladapter()
+    kommiauftraege_new, kommiauftraege_processing = [], []
     kommiauftraege = [] # falls es nix zu kommisionieren gibt
-    for kommiauftragnr in myplfrontend.kernelapi.get_kommiauftrag_list():
-        kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
+    
+    for kommiauftragnr in kerneladapter.get_kommiauftrag_list():
+        kommiauftrag = kerneladapter.get_kommiauftrag(kommiauftragnr)
+        
         if kommiauftrag['status'] == 'processing':
-            kommiauftraege_processing.append(myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr))
+            kommiauftraege_processing.append(kerneladapter.get_kommiauftrag(kommiauftragnr))
         else:
-            kommiauftraege_new.append(myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr))
+            kommiauftraege_new.append(kerneladapter.get_kommiauftrag(kommiauftragnr))
         
         kommiauftraege = kommiauftraege_processing + kommiauftraege_new
         if len(kommiauftraege) > 200:
-            pipelincutoff = True
+            cutoff = True
             kommiauftraege = kommiauftraege[:200]
+        else:
+            cutoff = False
     
     return render_to_response('myplfrontend/kommiauftraege.html',
                               {'title': 'Komissionierungen, die nicht erledigt sind.',
-                               'kommiauftraege': kommiauftraege, 'pipelincutoff': pipelincutoff}, #, 'db': db},
+                               'kommiauftraege': kommiauftraege, 'cutoff': cutoff},
                               context_instance=RequestContext(request))
-    
+
 
 @require_login
 @permission_required('mypl.can_change_priority')
 def kommiauftrag_set_priority(request, kommiauftragnr):
-    priority = int(request.POST.get('priority').strip('p'))
-    content = myplfrontend.kernelapi.set_kommiauftrag_priority(
-            kommiauftragnr,
+    priority = int(request.POST.get('priority', '').strip('p'))
+    kerneladapter = Kerneladapter()
+    content = kerneladapter.set_kommiauftrag_priority(kommiauftragnr,
             explanation='Prioritaet auf %d durch %s geaendert' % (priority, request.user.username),
             priority=priority)
     return HttpResponse(content, mimetype='application/json')
@@ -359,7 +388,7 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
 @django.views.decorators.http.require_POST
 @permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
-    begruendung = request.POST.get('begruendung').strip()
+    begruendung = request.POST.get('begruendung', '').strip()
     content = myplfrontend.kernelapi.kommiauftrag_nullen(kommiauftragnr, request.user.username, begruendung)
     if content:
         request.user.message_set.objects.create('%s erfolgreich genullt' % kommiauftragnr)
@@ -373,14 +402,12 @@ def kommiauftrag_nullen(request, kommiauftragnr):
 def bewegung_stornieren(request, movementid):
     """Cancel a movement."""
 
-    content = myplfrontend.kernelapi.movement_stornieren(movementid)
-
-    if content:
-        cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movementid, request.user.username))
+    if myplfrontend.kernelapi.movement_stornieren(movementid):
+        cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movementid, request.user.username), username="mypl")
         request.user.message_set.objects.create('%s erfolgreich storniert' % movementid)
         return HttpResponseRedirect('../')
     else:
-        return HttpResponse("Fehler beim stornieren", mimetype='text/plain', status=500)
+        return HttpResponse("Fehler beim stornieren", mimetype='text/plain', status=500) # XXX: Besser: Fehler anzeigen
 
 
 @require_login
@@ -420,7 +447,7 @@ def kommiauftrag_show(request, kommiauftragnr):
         # 'status': 'new',
         # 'type': 'picklist',
     
-    # TODO: change to unitaudit
+    # TODO: change to unitaudit - GANZ GROSSER KOMMENTAR! DA WEISS JEDER IMMER SOFORT WAS GEMEINT IST!
     audit = myplfrontend.kernelapi.get_audit('fields/by_komminr', kommiauftragnr)
     title = 'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
@@ -447,3 +474,27 @@ def softmdifferences(request):
     differences = myplfrontend.tools.find_softm_differences()
     return render_to_response('myplfrontend/softmdifferences.html', {'differences': differences},
                               context_instance=RequestContext(request))
+
+
+##########
+### Views, die schreibend auf das System zugreifen
+##########
+
+@require_login
+@django.views.decorators.http.require_POST
+def create_movement(request):
+    """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
+
+    # TODO: make use of PrinterChooser here
+    movement = myplfrontend.kernelapi.create_automatic_movement({'user': request.user.username,
+              'reason': 'manuell durch %s aus Requesttracker angefordert' % request.user.username})
+    if not movement:
+        request.user.message_set.create(message="Es stehen keine Umlagerungen an.")
+    else:
+        # movement ist ein Dict
+        movement_id = movement['oid']
+        # Umlagerbeleg drucken
+        pdf = myplfrontend.belege.get_movement_pdf(movement_id)
+        cs.printing.print_data(pdf, printer="DruckerAllman")
+        request.user.message_set.create(message='Beleg %(oid)s wurde gedruckt' % movement)
+    return HttpResponseRedirect('../')

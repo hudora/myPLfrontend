@@ -3,13 +3,11 @@
 
 {% block content %}
 <div id="content_main">
-    {% if tracking_infos %}
+{% if tracking_infos %}
+
     <table>
-        <tr>
-            <th>Menge</th>
-            <th>ArtNr</th>
-            <th>Zuletzt gesehen</th> <!-- FIXME: korrekt übersetzt? -->
-        </tr>
+        <thead><tr><th>Menge</th><th>ArtNr.</th><th>Zuletzt gesehen</th></tr></thead>
+        <tbody>
         {% for info in tracking_infos %}
         <tr class="{% cycle odd,even %}">
             <td>{{info.menge}}</td>
@@ -17,10 +15,14 @@
             <td>{{info.lastseen|fix_timestamp}}</td>
         </tr>
         {% endfor %}
+        </tbody>
     </table>
-    {% else %}
-    <b>Niks!</b>
-    {% endif %}
+
+    <form action="../create_movement/" method="POST">
+        <button type="submit" value="movement" name="provisioningtype"><strong>automatische Umlagerung erzeugen</strong></button>
+    </form>
+{% else %}
+    <b>Es liegen momenten keine Umlagerungsanforderungen vor.</b>
+{% endif %}
 </div>
 {% endblock %}
-

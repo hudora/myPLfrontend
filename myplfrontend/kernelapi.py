@@ -3,7 +3,7 @@
 """
 kernelapi.py - accesses kernelE via Python.
 
-See http://cybernetics.../kernelE/trunk/docs/kernal-API.rst for details.
+See https://github.com/hudora/kernelE/blob/master/doc/kernel-API.rst for details.
 
 Created by Maximillian Dornseif on 2009-10-16.
 Copyright (c) 2009 HUDORA. All rights reserved.
@@ -17,10 +17,6 @@ import datetime
 import httplib2
 import simplejson as json
 import time
-
-
-COUCHSERVER = "http://couchdb.local.hudora.biz:5984"
-KERNELURL = "http://hurricane.local.hudora.biz:8000"
 
 
 def fix_timestamp(value):
@@ -76,7 +72,6 @@ def e2string(data):
     if data == []:
         return ''
     return data
-
 
 
 class Kerneladapter(object):
@@ -138,11 +133,12 @@ class Kerneladapter(object):
         else:
             raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (response.status, content))
 
-    def _couch(self, database, view, **kwargs):
+    def _couch(self, database, view, descending=False, include_docs=True, limit=100, **kwargs):
         """Get document from CouchDB"""
         
-        if not 'include_docs' in kwargs:
-            kwargs['include_docs'] = True
+        kwargs.update({'include_docs': include_docs,
+                       'descending': descending,
+                       'limit': 100})
         server = couchdb.client.Server(self.couchdbserver)
         return server[database].view(view, **kwargs)
 
@@ -355,9 +351,13 @@ class Kerneladapter(object):
           '_rev': '2-998a3cccfdb6016a6928b3489adbca5d',
           ...},
           ...]
-
         """
-        rows = self._couch('mypl_audit', 'selection/articleaudit', descending=True, key=artnr, limit=1000)
+        rows = self._couch('mypl_audit', 'selection/articleaudit', key=artnr, descending=True, limit=1000)
+        return [fix_timestamps(dict(entry.doc)) for entry in rows]
+    
+    def get_unit_audit(self, mui):
+        """Hole Audit-informationen zu einer Palette aus der CouchDB """
+        self._couch('mypl_audit', 'selection/unitaudit', key=mui, limit=100)
         return [fix_timestamps(dict(entry.doc)) for entry in rows]
     
     def get_audit(self, view, key):
@@ -370,7 +370,7 @@ class Kerneladapter(object):
         return sorted(audit, key=itemgetter('created_at'), reverse=True)
 
     ### A R C H I V E D
-    def get_unit(self, mui):
+    def get_unit_info(self, mui):
         """Return detailed information about a unit.
 
         Information is taken from couchdb archive, if nothing found in kernel
