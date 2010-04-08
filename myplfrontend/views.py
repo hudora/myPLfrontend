@@ -8,22 +8,20 @@ from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.views.decorators.cache import cache_page
+from django.views.decorators.http import require_POST
 
-from huTools.robusttypecasts import float_or_0
-from hudjango.auth.decorators import require_login
+import myplfrontend.belege
 from myplfrontend.forms import PalletHeightForm
+from myplfrontend.kernelapi import Kerneladapter
+import myplfrontend.tools
 
 import cs.masterdata.article
 import cs.printing
 import cs.zwitscher
-import django.views.decorators.http
+from hudjango.auth.decorators import require_login
 import husoftm.bestaende
+from huTools.robusttypecasts import float_or_0
 import itertools
-# import mypl.models
-import myplfrontend.belege
-import myplfrontend.kernelapi
-from myplfrontend.kernelapi import Kerneladapter
-import myplfrontend.tools
 
 
 def _get_locations_by_height():
@@ -351,7 +349,6 @@ def kommiauftrag_list(request):
     
     kerneladapter = Kerneladapter()
     kommiauftraege_new, kommiauftraege_processing = [], []
-    kommiauftraege = [] # falls es nix zu kommisionieren gibt
     
     for kommiauftragnr in kerneladapter.get_kommiauftrag_list():
         kommiauftrag = kerneladapter.get_kommiauftrag(kommiauftragnr)
@@ -361,16 +358,11 @@ def kommiauftrag_list(request):
         else:
             kommiauftraege_new.append(kerneladapter.get_kommiauftrag(kommiauftragnr))
         
-        kommiauftraege = kommiauftraege_processing + kommiauftraege_new
-        if len(kommiauftraege) > 200:
-            cutoff = True
-            kommiauftraege = kommiauftraege[:200]
-        else:
-            cutoff = False
+    kommiauftraege = kommiauftraege_processing + kommiauftraege_new
     
     return render_to_response('myplfrontend/kommiauftraege.html',
                               {'title': 'Komissionierungen, die nicht erledigt sind.',
-                               'kommiauftraege': kommiauftraege, 'cutoff': cutoff},
+                               'kommiauftraege': kommiauftraege},
                               context_instance=RequestContext(request))
 
 
@@ -385,7 +377,7 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
     return HttpResponse(content, mimetype='application/json')
 
 
-@django.views.decorators.http.require_POST
+@require_POST
 @permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
     begruendung = request.POST.get('begruendung', '').strip()
@@ -397,7 +389,7 @@ def kommiauftrag_nullen(request, kommiauftragnr):
         return HttpResponse("Fehler beim Nullen von %r" % kommiauftragnr, mimetype='text/plain', status=500)
 
 
-@django.views.decorators.http.require_POST
+@require_POST
 @permission_required('mypl.can_cancel_movement')
 def bewegung_stornieren(request, movementid):
     """Cancel a movement."""
@@ -413,41 +405,37 @@ def bewegung_stornieren(request, movementid):
 @require_login
 def kommiauftrag_show(request, kommiauftragnr):
     """Render a page with further information for a single Kommiauftrag."""
-    kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
+    
+    kerneladapter = Kerneladapter()
+    kommiauftrag = kerneladapter.get_kommiauftrag(kommiauftragnr)
     # Prüfen, ob genug Ware für den Artikel verfügbar ist.
+    
     orderlines = []
     if not kommiauftrag.get('archived') and 'orderlines' in kommiauftrag:
         for orderline in kommiauftrag['orderlines']:
-            orderline['picksuggestion'] = myplfrontend.kernelapi.find_provisioning_candidates(
-                                                             orderline['menge'], orderline['artnr'])
+            orderline['picksuggestion'] = kerneladapter.find_provisioning_candidates(orderline['menge'], orderline['artnr'])
             available = bool(orderline['picksuggestion'])
             orderline['available'] = available
             if not available:
                 orderline['fehler'] = u'Kann zur Zeit nicht efüllt werden'
             orderlines.append(orderline)
+    
     kommischeine = []
     for kommischein_id in kommiauftrag.get('provisioninglists', []):
-        kommischein = myplfrontend.kernelapi.get_kommischein(kommischein_id)
+        kommischein = kommiauftrag.get_kommischein(kommischein_id)
+        
         provisionings = []
         for provisioning_id in kommischein.get('provisioning_ids', []):
             if kommischein.get('type') == 'picklist':
-                provisioning = myplfrontend.kernelapi.get_pick(provisioning_id)
+                provisioning = kommiauftrag.get_pick(provisioning_id)
                 if not provisioning:
                     provisioning = {}
                 provisioning.update({'id': provisioning_id})
                 provisionings.append(provisioning)
         kommischein['provisionings'] = provisionings
         kommischeine.append(kommischein)
-        # [[["id","p08437559"],["type","picklist"],["provpipeline_id","3097046"],["destination","AUSLAG"],
-        # ["parts",1],["attributes",[["volume",658.2239999999999],["anbruch",false],["weight",14268],
-        # ["paletten",0.10238095238095238],["export_packages",2.0]]],["status","new"],["created_at",
-        # "20091016T00113536.000000"],["provisioning_ids",["P08437537","P08437544"]]]]
-        # [{'anbruch': True,
-        # 'created_at': '2009-10-19T08:26:00.000000Z',
-        # 'status': 'new',
-        # 'type': 'picklist',
     
-    # TODO: change to unitaudit - GANZ GROSSER KOMMENTAR! DA WEISS JEDER IMMER SOFORT WAS GEMEINT IST!
+    # TODO: change to unitaudit
     audit = myplfrontend.kernelapi.get_audit('fields/by_komminr', kommiauftragnr)
     title = 'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
@@ -464,7 +452,8 @@ def kommiauftrag_show(request, kommiauftragnr):
 
 def requesttracker(request):
     """Display a table containing requesttracker data from kernelE."""
-    tracking_infos = myplfrontend.kernelapi.requesttracker()
+    kerneladapter = Kerneladapter()
+    tracking_infos = kerneladapter.requesttracker()
     return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos),
                               context_instance=RequestContext(request))
 
@@ -481,12 +470,12 @@ def softmdifferences(request):
 ##########
 
 @require_login
-@django.views.decorators.http.require_POST
+@require_POST
 def create_movement(request):
     """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
 
     # TODO: make use of PrinterChooser here
-    movement = myplfrontend.kernelapi.create_automatic_movement({'user': request.user.username,
+    movement = kerneladapter.create_automatic_movement({'user': request.user.username,
               'reason': 'manuell durch %s aus Requesttracker angefordert' % request.user.username})
     if not movement:
         request.user.message_set.create(message="Es stehen keine Umlagerungen an.")
