@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 import myplfrontend.belege
 from myplfrontend.forms import PalletHeightForm
-from myplfrontend.kernelapi import Kerneladapter
+from myplfrontend.kernelapi import Kerneladapter, fix_timestamp
 import myplfrontend.tools
 
 import cs.masterdata.article
@@ -80,8 +80,8 @@ def lager_info(request):
           }
     
     extra_info = kerneladapter.get_statistics()
-    extra_info['oldest_movement'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_movement'])
-    extra_info['oldest_pick'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_pick'])
+    extra_info['oldest_movement'] = fix_timestamp(extra_info['oldest_movement'])
+    extra_info['oldest_pick'] = fix_timestamp(extra_info['oldest_pick'])
     ctx.update(extra_info)
     return render_to_response('myplfrontend/lager_info.html', ctx, context_instance=RequestContext(request))
 
@@ -125,7 +125,7 @@ def artikel_heute(request):
     
     # summarize product quantities
     products = {}
-    for komminr in myplfrontend.kernelapi.get_kommiauftrag_list():
+    for komminr in kerneladapter.get_kommiauftrag_list():
         kommi = kerneladapter.get_kommiauftrag(komminr)
         if kommi['shouldprocess'] == 'yes':
             for orderline in kommi['orderlines']:
@@ -222,9 +222,10 @@ def show_articles(request, want_softm):
         url = './' + request.POST.get('article', '')
         return HttpResponseRedirect(url)
     
+    kerneladapter = Kerneladapter()
     articles = []
-    for artnr in myplfrontend.kernelapi.get_article_list():
-        article = myplfrontend.kernelapi.get_article(artnr)
+    for artnr in kerneladapter.get_article_list():
+        article = kerneladapter.get_article(artnr)
         article['name'] = cs.masterdata.article.name(article['artnr'])
         if want_softm:
             article['buchbestand'] = husoftm.bestaende.buchbestand(lager=100, artnr=article['artnr'])
@@ -381,7 +382,8 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
 @permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
     begruendung = request.POST.get('begruendung', '').strip()
-    content = myplfrontend.kernelapi.kommiauftrag_nullen(kommiauftragnr, request.user.username, begruendung)
+    kerneladapter = Kerneladapter()
+    content = kerneladapter.kommiauftrag_nullen(kommiauftragnr, request.user.username, begruendung)
     if content:
         request.user.message_set.objects.create('%s erfolgreich genullt' % kommiauftragnr)
         return HttpResponseRedirect('../')
@@ -394,7 +396,7 @@ def kommiauftrag_nullen(request, kommiauftragnr):
 def bewegung_stornieren(request, movementid):
     """Cancel a movement."""
 
-    if myplfrontend.kernelapi.movement_stornieren(movementid):
+    if Kerneladapter().movement_stornieren(movementid):
         cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movementid, request.user.username), username="mypl")
         request.user.message_set.objects.create('%s erfolgreich storniert' % movementid)
         return HttpResponseRedirect('../')
@@ -436,7 +438,7 @@ def kommiauftrag_show(request, kommiauftragnr):
         kommischeine.append(kommischein)
     
     # TODO: change to unitaudit
-    audit = myplfrontend.kernelapi.get_audit('fields/by_komminr', kommiauftragnr)
+    audit = kerneladapter.get_audit('fields/by_komminr', kommiauftragnr)
     title = 'Kommissionierauftrag %s' % kommiauftragnr
     if kommiauftrag.get('archived'):
         title += ' (archiviert)'
