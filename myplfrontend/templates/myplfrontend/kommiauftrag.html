@@ -109,7 +109,7 @@
       $(function() { // This gets executed as document-ready function
         $('#priority-select > input').rating('select', 'p{{kommiauftrag.priority}}');
         $('#priority-select').attr({'action': 'set_priority/'});
-        {% if not priority_change_allowed %}
+        {% if not perms.mypl.can_change_priority %}
             $('#priority-select > input').rating('readOnly', true);
         {% else %}
             {% ifnotequal kommiauftrag.status "new" %} 
@@ -300,7 +300,7 @@
 <div id="sonderfunktionen">
 
 <h2>Kommiauftrag Nullen</h2>
-{% if can_zeroise_provisioning %}
+{% if perms.mypl.can_zeroise_provisioning %}
 <form id="storno" method="post" action="nullen/">
    Begründung:
    <textarea name="begruendung"></textarea><br/><br/>

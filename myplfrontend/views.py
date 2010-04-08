@@ -34,88 +34,40 @@ def _get_locations_by_height():
             continue
         loc_info = dict(name=info['name'], preference=info['preference'])
         height = info['height']
-        if (info['reserved_for'] or info['allocated_by']):
+        if info['reserved_for'] or info['allocated_by']:
             booked.setdefault(height, []).append(loc_info)
         else:
             unbooked.setdefault(height, []).append(loc_info)
-    return (booked, unbooked, )
+    return booked, unbooked
 
-
-def _lager_info():
-    """This is the logic for the lager_info view.
-
-    A dict is created, containing information about warehouse status."""
-    anzahl_artikel = len(myplfrontend.kernelapi.get_article_list())
-
-    booked_plaetze, unbooked_plaetze = _get_locations_by_height()
-
-    booked_plaetze = sorted([(height, len(loc), ) for height, loc in booked_plaetze.items()])
-    unbooked_plaetze = sorted([(height, len(loc), ) for height, loc in unbooked_plaetze.items()])
-
-    nplaetze_booked = sum([x[1] for x in booked_plaetze])
-    nplaetze_unbooked = sum([x[1] for x in unbooked_plaetze])
-    nplaetze_gesamt = nplaetze_booked + nplaetze_unbooked
-
-    return {'anzahl_bebucht': nplaetze_booked, 'anzahl_unbebucht': nplaetze_unbooked,
-                'anzahl_plaetze': nplaetze_gesamt, 'anzahl_artikel': anzahl_artikel,
-                'plaetze_bebucht': booked_plaetze, 'plaetze_unbebucht': unbooked_plaetze}
-
-
-def index(request):
-    """Render static index page."""
-    return render_to_response('myplfrontend/index.html', {}, context_instance=RequestContext(request))
-    
 
 def lager_info(request):
     """Render a page with basic information about the Lager."""
-    # TODO: inline code above
-    info = _lager_info()
     
-    extra_info = myplfrontend.kernelapi.get_statistics()
-
+    kerneladapter = myplfrontent.kernelapi.Kerneladapter()
+    anzahl_artikel = len(kerneladapter.get_article_list())
+    
+    booked, unbooked = _get_locations_by_height()
+    booked = sorted((height, len(loc)) for height, loc in booked.items())
+    unbooked = sorted((height, len(loc)) for height, loc in unbooked.items())
+    
+    num_booked = sum(platz[1] for platz in booked)
+    num_unbooked = sum(platz[1] for x in unbooked)
+        
+    ctx = {
+            'anzahl_bebucht': num_booked,
+            'anzahl_unbebucht': num_unbooked,
+            'anzahl_plaetze': num_booked + num_unbooked,
+            'anzahl_artikel': anzahl_artikel,
+            'plaetze_bebucht': booked,
+            'plaetze_unbebucht': unbooked
+    }
+    
+    extra_info = kerneladapter.get_statistics()
     extra_info['oldest_movement'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_movement'])
     extra_info['oldest_pick'] = myplfrontend.kernelapi.fix_timestamp(extra_info['oldest_pick'])
-
-    info.update(extra_info)
-
-    return render_to_response('myplfrontend/lager_info.html', info, context_instance=RequestContext(request))
-
-''' commented out for pylint    
-def kommischein_info(request, kommischeinid):
-    """kommischein ist auch bekannt als picklist, retrievallist oder provisioninglist."""
-
-    #FIXME Here is no return value - is this view still in use / to be used ???
-   
-   from mypl.kernel import Kerneladapter
-
-    # TODO: move to http, mixme, md
-    kerneladapter = Kerneladapter()
-    kommischein = {}
-    try:
-        # WATCHOUT: when moving to http: unit_detail has some different keys than unit_info!
-        unit = kerneladapter.unit_info(mui)
-    except:
-        server = couchdb.client.Server(COUCHSERVER)
-        db = server["mypl_archive"]
-        raw_reply = db.view('selection/kommischeine', key=mui, limit=1)
-        for doc in [db[x.id] for x in raw_reply if x.key.startswith(mui)]:
-            kommischein = doc
-    # (mypl_produktion@airvent)346> mypl_prov_query:provisioninglist_info("p08147727").
-    # {ok,[{id,"p08147727"},
-    #      {type,picklist},
-    #      {provpipeline_id,"3096132"},
-    #      {destination,"AUSLAG"},
-    #      {parts,1},
-    #      {attributes,[{volume,41.598375000000004},
-    #                   {anbruch,true},
-    #                   {weight,13540},
-    #                   {paletten,0.04791666666666666},
-    #                   {export_packages,1.0}]},
-    #      {status,new},
-    #      {created_at,{{2009,10,9},{5,4,29}}},
-    #      {provisioning_ids,["P08147696","P08147704","P08147715"]}]}
-    # 
-'''
+    ctx.update(extra_info)
+    return render_to_response('myplfrontend/lager_info.html', ctx, context_instance=RequestContext(request))
 
 
 def info_panel(request):
@@ -402,9 +354,8 @@ def kommiauftrag_set_priority(request, kommiauftragnr):
             explanation='Prioritaet auf %d durch %s geaendert' % (priority, request.user.username),
             priority=priority)
     return HttpResponse(content, mimetype='application/json')
-    
 
-@require_login # FIXME is this decorator still needed since we are using permission_required now?
+
 @django.views.decorators.http.require_POST
 @permission_required('mypl.can_zeroise_provisioning')
 def kommiauftrag_nullen(request, kommiauftragnr):
@@ -417,7 +368,6 @@ def kommiauftrag_nullen(request, kommiauftragnr):
         return HttpResponse("Fehler beim Nullen von %r" % kommiauftragnr, mimetype='text/plain', status=500)
 
 
-@require_login # FIXME is this decorator still needed since we are using permission_required now?
 @django.views.decorators.http.require_POST
 @permission_required('mypl.can_cancel_movement')
 def bewegung_stornieren(request, movementid):
@@ -439,7 +389,7 @@ def kommiauftrag_show(request, kommiauftragnr):
     kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
     # Prüfen, ob genug Ware für den Artikel verfügbar ist.
     orderlines = []
-    if 'orderlines' in kommiauftrag and not kommiauftrag.get('archived'):
+    if not kommiauftrag.get('archived') and 'orderlines' in kommiauftrag:
         for orderline in kommiauftrag['orderlines']:
             orderline['picksuggestion'] = myplfrontend.kernelapi.find_provisioning_candidates(
                                                              orderline['menge'], orderline['artnr'])
@@ -476,16 +426,12 @@ def kommiauftrag_show(request, kommiauftragnr):
     if kommiauftrag.get('archived'):
         title += ' (archiviert)'
 
-    # FIXME: maybe its a cleaner approach to submit the user and handle the has_perm stuff
-    #        inside of the templates
-    priority_change_allowed = request.user.has_perm('mypl.can_change_priority')
-    can_zeroise_provisioning = request.user.has_perm('mypl.can_zeroise_provisioning')
     return render_to_response('myplfrontend/kommiauftrag.html',
                               {'title': title,
                                'kommiauftrag': kommiauftrag,
-                               'orderlines': orderlines, 'kommischeine': kommischeine,
-                               'auditlines': audit, 'priority_change_allowed': priority_change_allowed,
-                               'can_zeroise_provisioning': can_zeroise_provisioning},
+                               'orderlines': orderlines,
+                               'kommischeine': kommischeine,
+                               'auditlines': audit},
                               context_instance=RequestContext(request))
 
 

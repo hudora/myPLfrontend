@@ -1,7 +1,10 @@
 from django.conf.urls.defaults import *
 
-urlpatterns = patterns('myplfrontend.views',
-    (r'^$', 'index'),
+urlpatterns = patterns(
+    url(r'^$', 'django.views.generic.simple.direct_to_template', {'template': 'myplfrontend/index.html'}, name="myplfrontent-index"),
+)
+
+urlpatterns += patterns('myplfrontend.views',
     (r'^kommiauftrag/$', 'kommiauftrag_list'),
     (r'^kommiauftrag/(?P<kommiauftragnr>\d+)/$', 'kommiauftrag_show'),
     (r'^kommiauftrag/(?P<kommiauftragnr>\d+)/set_priority/$', 'kommiauftrag_set_priority'),
