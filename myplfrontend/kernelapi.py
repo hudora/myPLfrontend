@@ -17,6 +17,7 @@ import datetime
 import httplib2
 import simplejson as json
 import time
+import random
 
 
 def fix_timestamp(value):
@@ -288,14 +289,51 @@ class Kerneladapter(object):
     
     ### P O S T
     
+    # XXX: rename
+    def get_next_job(self, probability):
+        """
+        XXX
+        
+        probability gibt die Wahrscheinlichkeit an, mit der ein Retrieval erzeugt werden soll,
+        1 - probability ist demnach die W'keit für die Erzeugung eines Movements.
+        """
+        
+        if random.random() < probability:
+            return self.get_next_retrieval()
+        else:
+            return self.get_next_movement()
+    
+    # XXX: implement
+    def get_next_retrieval(self):
+        raise NotImplementedError('not implemented yet')
+    
+    # XXX: rename
     def get_next_movement(self, **kwargs):
         """Get movement (or retrieval)"""
         movement = self._post('movement', **kwargs)
         return movement
     
-    def commit_movement(self, movementid):
+    def commit_movement(self, movement_id):
         """Movement zurückmelden"""
-        return self._post('movement/%s' % movementid)
+        return self._post('movement/%s' % movement_id)
+
+    #### BEGIN OF DRAFT CODE ####
+    def commit_provisioning(self, belegnr):
+        if belegnr.startswith('r'):
+            self.commit_retrieval(belegnr)
+        elif belegnr.startswith('p'):
+            self.commit_picklist(belegnr)
+        else:
+            raise RuntimeError("Unknown provisioning type: %s" % belegnr)
+    
+    def commit_retrieval(self, retrieval_id):
+        """Retrieval zurückmelden"""
+        raise NotImplementedError("Not implemented yet")
+    
+    def commit_picklist(self, picklist_id):
+        """Picklist zurückmelden"""
+        return self._post('pick/%s' % picklist_id)1
+    ##### END #####
     
     def set_kommiauftrag_priority(self, kommiauftragnr, begruendung, priority):
         """Changes the priority of a Kommiauftrag."""
