@@ -1,6 +1,6 @@
 from django.conf.urls.defaults import *
 
-urlpatterns = patterns(
+urlpatterns = patterns('',
     url(r'^$', 'django.views.generic.simple.direct_to_template', {'template': 'myplfrontend/index.html'}, name="myplfrontent-index"),
 )
 
@@ -12,7 +12,7 @@ urlpatterns += patterns('myplfrontend.views',
     (r'^unit/$', 'unit_list'),
     (r'^unit/(?P<mui>.+)/$', 'unit_show'),
     (r'^bewegungen/$', 'bewegungen'),
-    (r'^movements/(?P<mid>.*)/storno/$', 'movement_stornieren'),
+    (r'^movements/(?P<movement_id>.*)/storno/$', 'movement_stornieren'),
     (r'^movements/(?P<mid>.*)/$', 'movement_show'),
     (r'^picks/(?P<pickid>.*)/$', 'pick_show'),
     (r'^produkte/$', 'show_articles', {'want_softm': False}),
@@ -24,8 +24,8 @@ urlpatterns += patterns('myplfrontend.views',
     #(r'^kommischein/(?P<kommid>.*)/$', kommischein_info),
     (r'^plaetze/$', 'lagerplaetze'),
     (r'^plaetze/(?P<location>.+)/$', 'lagerplatz_detail'),
-    (r'^abc/$', 'abc'),
-    (r'^penner/$', 'penner'),
+    url(r'^abc/$', 'abc', name="myplfrontend-abc"),
+    url(r'^penner/$', 'penner', name="myplfrontend-penner"),
     (r'^komissionierung/infopanel/$', 'info_panel'),
     (r'^artikel_heute/$', 'artikel_heute'),
     (r'^requesttracker/$', 'requesttracker'),

@@ -332,7 +332,6 @@ class Kerneladapter(object):
         return self._delete('movement/%s' % movementid, data)
 
     ### C O U C H
-    
     def get_article_audit(self, artnr):
         """Get audit information for an article.
 

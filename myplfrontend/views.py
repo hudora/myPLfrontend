@@ -11,17 +11,19 @@ from django.views.decorators.cache import cache_page
 from django.views.decorators.http import require_POST
 
 import myplfrontend.belege
+import myplfrontend.tools
 from myplfrontend.forms import PalletHeightForm
 from myplfrontend.kernelapi import Kerneladapter, fix_timestamp
-import myplfrontend.tools
 
 import cs.masterdata.article
 import cs.printing
 import cs.zwitscher
-from hudjango.auth.decorators import require_login
+import itertools
 import husoftm.bestaende
 from huTools.robusttypecasts import float_or_0
-import itertools
+
+import hudjango
+from hudjango.auth.decorators import require_login
 
 
 def _get_locations_by_height():
@@ -69,7 +71,7 @@ def lager_info(request):
     unbooked = sorted((height, len(loc)) for height, loc in unbooked.items())
     
     num_booked = sum(platz[1] for platz in booked)
-    num_unbooked = sum(platz[1] for x in unbooked)
+    num_unbooked = sum(platz[1] for platz in unbooked)
     
     ctx = {'anzahl_bebucht': num_booked,
            'anzahl_unbebucht': num_unbooked,
@@ -126,9 +128,9 @@ def artikel_heute(request):
     # summarize product quantities
     products = {}
     for komminr in kerneladapter.get_kommiauftrag_list():
-        kommi = kerneladapter.get_kommiauftrag(komminr)
-        if kommi['shouldprocess'] == 'yes':
-            for orderline in kommi['orderlines']:
+        kommibeleg = kerneladapter.get_kommiauftrag(komminr)
+        if kommibeleg['shouldprocess'] == 'yes':
+            for orderline in kommibeleg['orderlines']:
                 artnr = orderline['artnr']
                 products[artnr] = products.get(artnr, 0) + orderline['menge']
     
@@ -174,7 +176,7 @@ def penner(request):
     """View für Penner-Übersicht (Artikel ohne Aktivität in der letzten Zeit)"""
     
     kerneladapter = Kerneladapter()
-    abc_articles = set(artnr for (m, artnr) in itertools.chain(*kerneladapter.get_abc().values()))
+    abc_articles = set(artnr for (_, artnr) in itertools.chain(*kerneladapter.get_abc().values()))
     lagerbestand = set(kerneladapter.get_article_list())
     
     pennerliste = []
@@ -206,7 +208,7 @@ def lagerplatz_detail(request, location):
     
     kerneladapter = Kerneladapter()
     platzinfo = kerneladapter.get_location(location)
-    units = [kerneladapter.get_unit(mui)) for mui in platzinfo['allocated_by']]
+    units = [kerneladapter.get_unit(mui) for mui in platzinfo['allocated_by']]
     
     # TODO: alle movements und korrekturbuchungen auf diesem Platz zeigen
     # Und zwar wie?!?
@@ -252,7 +254,7 @@ def article_detail(request, artnr):
                               {'title': 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr),
                                'article_info': article_info,
                                'bestand100': husoftm.bestaende.bestand(artnr=artnr, lager=100),
-                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']},
+                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']]},
                               context_instance=RequestContext(request))
 
 
@@ -272,7 +274,7 @@ def bewegungen(request):
     
     kerneladapter = Kerneladapter()
     movements = [kerneladapter.get_movement(movement_id) for movement_id in sorted(kerneladapter.get_movements_list())]
-    picks = [kerneladapter,get_pick(pick_id) for pick_id in sorted(kerneladapter.get_picks_list())]
+    picks = [kerneladapter.get_pick(pick_id) for pick_id in sorted(kerneladapter.get_picks_list())]
     return render_to_response('myplfrontend/movement_list.html', {'movements': movements, 'picks': picks},
                               context_instance=RequestContext(request))
 
@@ -393,12 +395,12 @@ def kommiauftrag_nullen(request, kommiauftragnr):
 
 @require_POST
 @permission_required('mypl.can_cancel_movement')
-def bewegung_stornieren(request, movementid):
+def movement_stornieren(request, movement_id):
     """Cancel a movement."""
 
-    if Kerneladapter().movement_stornieren(movementid):
-        cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movementid, request.user.username), username="mypl")
-        request.user.message_set.objects.create('%s erfolgreich storniert' % movementid)
+    if Kerneladapter().movement_stornieren(movement_id):
+        cs.zwitscher.zwitscher('%s erfolgreich storniert (%s)' % (movement_id, request.user.username), username="mypl")
+        request.user.message_set.objects.create('%s erfolgreich storniert' % movement_id)
         return HttpResponseRedirect('../')
     else:
         return HttpResponse("Fehler beim stornieren", mimetype='text/plain', status=500) # XXX: Besser: Fehler anzeigen
@@ -473,19 +475,18 @@ def softmdifferences(request):
 
 @require_login
 @require_POST
-def create_movement(request):
-    """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
+def get_movement(request):
+    """Hole die nächste Umlagerung"""
 
-    # TODO: make use of PrinterChooser here
-    movement = kerneladapter.create_automatic_movement({'user': request.user.username,
-              'reason': 'manuell durch %s aus Requesttracker angefordert' % request.user.username})
+    printer = hudjango.PrinterChooser(request, ('DruckerAllman', ), 'label')
+    movement = kerneladapter.get_next_movement(user=request.user.username,
+                                               reason='manuell aus Requesttracker angefordert')
     if not movement:
         request.user.message_set.create(message="Es stehen keine Umlagerungen an.")
     else:
-        # movement ist ein Dict
         movement_id = movement['oid']
         # Umlagerbeleg drucken
-        pdf = myplfrontend.belege.get_movement_pdf(movement_id)
-        cs.printing.print_data(pdf, printer="DruckerAllman")
-        request.user.message_set.create(message='Beleg %(oid)s wurde gedruckt' % movement)
+        document = myplfrontend.belege.get_movement_pdf(movement_id)
+        cs.printing.print_data(document, printer=printer.name)
+        request.user.message_set.create(message='Beleg %s wurde auf %s gedruckt' % (movement, printer.name))
     return HttpResponseRedirect('../')

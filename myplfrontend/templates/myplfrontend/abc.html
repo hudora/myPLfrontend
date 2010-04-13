@@ -2,38 +2,54 @@
 {% load myplfrontendtags hudoratools %}
 
 {% block title %}myPL: ABC Klassifizierung{% endblock %}
-
 {% block headline %}ABC Klassifizierung{% endblock%}
 
 {% block content %}
-
 <div id="content_main">
-<p>ABC-Klassifizierung basierend auf der Anzahl der Picks in den letzten 45 Tagen:</p>
+    <p>ABC-Klassifizierung basierend auf der Anzahl der Picks in den letzten 45 Tagen:</p>
 
+    <div class="section">
+    <h3>A-Artikel</h3>
+    <table>
+        <thead>
+            <tr><th>MUIs</th><th>Picks</th><th>ArtNr</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+        {% for artikel in klasses.a %}
+            <tr><td>{{artikel.3}}</td><td>{{artikel.0}}</td><td>{{artikel.2|link_product}}</td><td>{{artikel.2|artnr2name}}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    
+    <div class="section">
+    <h3>B-Artikel</h3>
+    <table>
+        <thead>
+            <tr><th>MUIs</th><th>Picks</th><th>ArtNr</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+        {% for artikel in klasses.b %}
+            <tr><td>{{artikel.3}}</td><td>{{artikel.0}}</td><td>{{artikel.2|link_product}}</td><td>{{artikel.2|artnr2name}}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
 
-<table>
-<tr><th>MUIs</th><th>Picks</th><th>ArtNr</th><th>Name</th></tr>
-<tr class="odd"><td colspan="4">A-Artikel</td></tr>
-{%for art in klasses.a %}
-<tr><td>{{art.3}}</td><td>{{art.0}}</td><td>{{art.2|link_product}}</td><td>{{art.2|artnr2name}}</td></tr>
-{% endfor %}
+    <div class="section">
+    <h3>C-Artikel</h3>
+    <table>
+        <thead>
+            <tr><th>MUIs</th><th>Picks</th><th>ArtNr</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+        {% for artikel in klasses.c %}
+            <tr><td>{{artikel.3}}</td><td>{{artikel.0}}</td><td>{{artikel.2|link_product}}</td><td>{{artikel.2|artnr2name}}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-<tr class="odd"><td colspan="4">B-Artikel</td></tr>
-{%for art in klasses.b %}
-<tr><td>{{art.3}}</td><td>{{art.0}}</td><td>{{art.2|link_product}}</td><td>{{art.2|artnr2name}}</td></tr>
-{% endfor %}
-
-<tr class="odd"><td colspan="4">C-Artikel</td></tr>
-{%for art in klasses.c %}
-<tr><td>{{art.3}}</td><td>{{art.0}}</td><td>{{art.2|link_product}}</td><td>{{art.2|artnr2name}}</td></tr>
-{% endfor %}
-</table>
-
-
-<p>Siehe auch <a href="../penner/">Penner</a>.</p>
-
-           </div>
+<p>Siehe auch <a href="{% url myplfrontend-penner %}">Penner</a></p>
+</div>
 {% endblock %}
-</body>
-</html>
-
