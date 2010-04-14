@@ -9,7 +9,7 @@ Rewritten by Maximillian Dornseif 2008-12 and 2010-01
 Copyright (c) 2007, 2008, 2010 HUDORA GmbH.
 """
 
-import cs.masterdata.article
+from cs.masterdata import article
 import cs.messaging as messaging
 import husoftm.lieferscheine
 from myplfrontend.kernelapi import Kerneladapter
@@ -55,10 +55,13 @@ def export_kommi_to_kernel(doc, options):
                  }
     
     orderlines = []
-    total_weight, total_volume = 0, 0 # XXX
+    total_weight, total_volume = 0., 0.
     for position in doc['positionen']:
-        pos_params = {"auftragsposition": position['kommissionierbeleg_position'], "gewicht": 0} # XXX
-        orderlines.append((position['menge'], position.['artnr'], pos_params))
+        produktpass = article.eap(position['artnr'])
+        total_volume += position['menge'] * produktpass['package_volume_liter']
+        total_weight += position['menge'] * produktpass['package_weight']
+        pos_params = {"auftragsposition": position['kommissionierbeleg_position'], "gewicht": produktpass['package_weight']}
+        orderlines.append((position['menge'], position['artnr'], pos_params))
     
     if not options.dry_run:
         Kerneladapter().insert_pipeline((
