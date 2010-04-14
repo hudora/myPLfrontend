@@ -287,7 +287,19 @@ class Kerneladapter(object):
         
         return self._get('location/%s' % location)
     
-    ### P O S T
+    # =================
+    # = POST REQUESTS =
+    # =================
+    
+    def insert_pipeline(self, auftrag):
+        """
+        Provpipeline-Eintrag erzeugen
+        
+        auftrag ist ein Tupel mit folgenden Elementen:
+        CId, Orderlines, Priority, Customer, Weigth, Volume, Attributes
+        Siehe kernelE-Doku.
+        """
+        return self._post("kommiauftrag", auftrag)
     
     # XXX: rename
     def get_next_job(self, probability):

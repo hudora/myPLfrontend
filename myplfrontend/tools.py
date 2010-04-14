@@ -11,6 +11,21 @@ import unittest
 import husoftm.bestaende
 import myplfrontend.kernelapi
 import itertools
+import datetime
+import huTools.calendar.add_workdays_german as add_workdays
+
+# Wie viele Werk-Tage vor dem ermittelten Liefertermin muss der Versandtermin liegen. Für Deutschland
+# gibt es eine individuelle Berechnung. Das ganze ist eh ein bisschen zu grob.
+LAND_VORLAUFTAGE = {'AT': 3, 'FR': 3, 'ES': 4, 'DE': 1, 'NL': 2, 'BE': 2, 'CH': 4}
+LAND_VORLAUFTAGE_DEFAULT = 5
+
+
+def get_versandtermin(liefertermin, land):
+    """Calculate the shipping date for a delivery date."""
+    if isinstance(liefertermin, basestring):
+        liefertermin = datetime.datetime.strptime(liefertermin, "%Y-%m-%d")
+    versandtermin = add_workdays(liefertermin, -LAND_VORLAUFTAGE.get(land, LAND_VORLAUFTAGE_DEFAULT))
+    return versandtermin
 
 
 def find_softm_differences():

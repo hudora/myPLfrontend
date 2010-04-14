@@ -427,49 +427,6 @@ class ProvisioningPosition(models.Model):
         return mypl.utils.compare_locations(self.location_from, other.location_from)
 
 
-class Event(models.Model):
-    """Represents a log entry for a job assigned (either a pick, retrieval, or movement)"""
-
-    action_type = models.CharField(max_length=15,
-                  choices=(('retrieval', 'retrieval'), ('pick', 'pick'), ('movement', 'movement')))
-    created_at = models.DateTimeField(auto_now_add=True, null=True)
-    confirmed_at = models.DateTimeField(blank=True, null=True)
-    handled_by = models.CharField(max_length=64, blank=True, default='')
-    positions = models.IntegerField(blank=True, null=True)
-    action_id = models.CharField(max_length=40, blank=True, null=True)
-
-    class Meta:
-        get_latest_by = "created_at"
-
-
-class Staplerjob(models.Model):
-    """Represents a stored Movement for Staplr."""
-    stapler_id = models.CharField(max_length=2)
-    movement_id = models.CharField(max_length=10)
-    serialized_movement = models.TextField()
-
-    def __unicode__(self):
-        return u'id: %s, stapler id: %s, movement id: %s' % (self.id, self.stapler_id, self.movement_id)
-
-
-MYPL_FUNCTION_CHOICES = (('zurueckmelden', u'Beleg zurückmelden'),
-                         ('picklist_holen', u'Picklist holen'),
-                         ('movement_holen', u'Movement holen'),
-                         ('retrieval_holen', u'Retrieval holen'),
-                         ('stapler_holen', u'Movement holen via Staplr'))
-
-
-class MyPLConfig(models.Model):
-    """Configuration class for MyPL functions."""
-
-    feature = models.CharField(max_length=32, unique=True, db_index=True, choices=MYPL_FUNCTION_CHOICES)
-    enabled = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = u"MyPL Configuration"
-        verbose_name_plural = u"MyPL Configurations"
-
-
 def get_provisionings_by_id(kommi_id):
     """Returns the picklist and the retrievallist for an ID.
 
