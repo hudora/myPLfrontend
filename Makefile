@@ -39,4 +39,8 @@ clean:
 	rm -Rf pythonenv build dist html test.db sloccount.sc pylint.out
 	find . -name '*.pyc' -or -name '*.pyo' -delete
 
+cdn:
+	echo upload to s3
+	s3put -a $(AWS_ACCESS_KEY_ID) -s $(AWS_SECRET_ACCESS_KEY) -b $(S3BUCKET) -g public-read -p $(PWD)/media/ media
+
 .PHONY: test build clean install upload check statistics dependencies
