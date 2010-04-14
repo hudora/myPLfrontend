@@ -196,6 +196,26 @@ def get_pickinfo_from_pipeline_data(pipeline_data):
     return db
 
 
+def split_quantities(quantity, per_unit):
+    """Splits quantity in units not larger than per_unit.
+    
+    >>> split_quantities(512, 100)
+    [100, 100, 100, 100, 100, 12]
+    >>> split_quantities('512', None)
+    [512]
+    >>> split_quantities('512.0', 1000)
+    [512]
+    >>> split_quantities(512, -10)
+    [512]
+    """
+    
+    if per_unit < 1:
+        return [quantity]
+    
+    quantity, per_unit = int(float(quantity)), int(float(per_unit))
+    return ([per_unit] * (quantity / per_unit)) + [quantity % per_unit]
+
+
 class toolsTests(unittest.TestCase):
     """Some tests for the tools-functionalities"""
 
