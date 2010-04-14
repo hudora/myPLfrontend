@@ -301,6 +301,16 @@ class Kerneladapter(object):
         """
         return self._post("kommiauftrag", auftrag)
     
+    # TODO
+    def init_movement_to_good_location(self, params):
+        raise NotImplementedError('pleeze!')
+        # self._post('')...
+    
+    # TODO
+    def store_at_location_multi(self, params):
+        raise NotImplementedError('pleeze!')
+        # self._post('')...
+    
     # XXX: rename
     def get_next_job(self, probability):
         """
