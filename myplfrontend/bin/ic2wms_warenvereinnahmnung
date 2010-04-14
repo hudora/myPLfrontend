@@ -25,6 +25,7 @@ if __name__ == "__main__":
 
 
 import cs.messaging as messaging
+from cs.messaging.journal import write_journal
 import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 from husoftm.bestellungen import get_zugaenge_warenvereinnahmungsnr_simple
@@ -32,24 +33,12 @@ import optparse
 import simplejson as json
 import sys
 import time
+import os.path
+import logging
 
 
+LOGGER = logging.getLogger(os.path.basename(__file__))
 rowcounter = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
 
 
 def transfer_zugaenge(lager):
@@ -66,7 +55,7 @@ def transfer_zugaenge(lager):
     # bestellnr, warenvereinnahmungsnr und satznr
     rows = isz00.available_rows(fields="IZBSTN, IZWVNR, IZSANR")
     if rows:
-        display("Processing Messages")
+        LOGGER.debug("Processing Messages")
 
     for row in rows:
         bestellnr, warenvereinnahmungsnr, satznr = row
@@ -85,8 +74,8 @@ def transfer_zugaenge(lager):
         for pos in positionen:
             if pos['lager'] != lager:
                 if lager_found:
-                    display("Gleiche Warenvereinnahmungsnr %s, unterschiedliche Lager %s - %s"
-                            % (Warenvereinnahmungsnr, lager, pos['lager']))
+                    LOGGER.debug("Gleiche Warenvereinnahmungsnr %s, unterschiedliche Lager %s - %s"
+                                 % (warenvereinnahmungsnr, lager, pos['lager']))
                 continue
 
             lager_found = True
@@ -104,9 +93,7 @@ def transfer_zugaenge(lager):
                                           audit_trail='import_warenzugang',
                                           audit_info='Auftrag aus SoftM ISZ00')
             doc.update(msg)
-
-            if options.debug:
-                display(msg)
+            LOGGER.debug(msg)
 
             if not options.dry_run:
                 # log file for replaying in case of errors
@@ -147,7 +134,15 @@ def main():
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
 
-    display("Starting %r ..." % sys.argv[0])
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
+
+
+    LOGGER.info("Starting %r ..." % sys.argv[0])
     while True:
         for lager in options.lager:
             transfer_zugaenge(lager)

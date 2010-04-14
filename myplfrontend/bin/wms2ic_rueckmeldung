@@ -270,7 +270,7 @@ def main(opts, args):
         channel.wait()
 
     channel.close()
-    connection.close()
+    channel.connection.close()
 
 
 if __name__ == '__main__':

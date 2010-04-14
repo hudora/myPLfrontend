@@ -13,7 +13,7 @@ Rewritten by Maximillian Dornseif 2008-12, 2010-01.
 Copyright (c) 2007-2010 HUDORA GmbH.
 """
 
-import cs.messaging
+import cs.messaging as messaging
 from cs.messaging.journal import write_journal
 import cs.zwitscher
 import datetime
@@ -24,16 +24,12 @@ import husoftm.versandart
 import optparse
 import sys
 import time
+import logging
+import os.path
 
 
+LOGGER = logging.getLogger(os.path.basename(__file__))
 rowcounter = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
 
 
 def transfer_kommis(lager):
@@ -48,10 +44,10 @@ def transfer_kommis(lager):
     messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
-        display("Processing Messages")
+        LOGGER.info("Processing Messages")
     for row in rows:
         komminr, auftragsnr, satznr, lagernr = row
-        display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
+        LOGGER.debug("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
         if int(lagernr) != lager:
             if options.debug:
@@ -60,7 +56,7 @@ def transfer_kommis(lager):
 
         rowcounter += 1
         if options.maxnum and (rowcounter > options.maxnum):
-            display("Maximum number of messages reached, exiting")
+            LOGGER.info("Maximum number of messages reached, exiting")
             sys.exit(0)
 
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
@@ -148,8 +144,7 @@ def transfer_kommis(lager):
             doc['versandartschluessel'] = softmschein.versandart
             doc['versandart'] = versandart
 
-        if options.debug:
-            display(doc)
+        LOGGER.debug(doc)
 
         if not options.dry_run:
             # log file for replaying in case of errors
@@ -189,6 +184,13 @@ def main():
         parser.error("'--lager' nicht gesetzt")
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
+
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
 
     while True:
         for lager in options.lager:

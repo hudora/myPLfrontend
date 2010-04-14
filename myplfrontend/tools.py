@@ -12,7 +12,7 @@ import husoftm.bestaende
 import myplfrontend.kernelapi
 import itertools
 import datetime
-import huTools.calendar.add_workdays_german as add_workdays
+from huTools.calendar.workdays import add_workdays_german as add_workdays
 
 # Wie viele Werk-Tage vor dem ermittelten Liefertermin muss der Versandtermin liegen. Für Deutschland
 # gibt es eine individuelle Berechnung. Das ganze ist eh ein bisschen zu grob.

@@ -19,9 +19,10 @@ import signal
 import sys
 import time
 import logging
+import os.path
 
-LOGGER = logging.getLogger("wms2mypl_kommiauftrag")
 
+LOGGER = logging.getLogger(os.path.basename(__file__))
 process_messages = True
 
 
@@ -33,11 +34,11 @@ def export_kommi_to_kernel(doc):
     
     attributes = {'auftragsnummer': kommiauftragsnr,
                   # TODO: remove liefertermin from Kernel
-                  'liefertermin': kommibeleg.liefer_date.strftime("%Y-%m-%d"),
+                  'liefertermin': doc['anliefertermin'].strftime("%Y-%m-%d"),
                   # FIXME diese attribute scheint es nicht zu geben im SoftM Lieferschein/Kommibeleg
                   #'anliefertermin_min': softmschein.anliefertermin_min.strftime("%Y-%m-%d"),
                   #'anliefertermin_max': softmschein.anliefertermin_max.strftime("%Y-%m-%d"),
-                  'versandtermin': get_versandtermin(doc['anliefertermin'], doc['land']),
+                  'versandtermin': get_versandtermin(doc['anliefertermin'], doc['land']).strftime("%Y-%m-%d"),
                   'kundenname': doc['name1'],
                   'land': doc['land'],
                   'plz': doc['plz'],
@@ -146,6 +147,7 @@ def main():
             last_requeue = time.time()
     
     channel.close()
+    channel.connection.close()
     return 0
 
 
