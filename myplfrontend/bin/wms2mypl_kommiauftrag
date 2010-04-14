@@ -10,13 +10,12 @@ Copyright (c) 2007, 2008, 2010 HUDORA GmbH.
 """
 
 from cs.masterdata import article
-import cs.messaging as messaging
-import husoftm.lieferscheine
+import cs.messaging
+from cs.messaging.journal import write_journal
 from myplfrontend.kernelapi import Kerneladapter
 from myplfrontend.tools import get_versandtermin
 import optparse
 import signal
-import simplejson as json
 import sys
 import time
 import logging
@@ -26,11 +25,11 @@ LOGGER = logging.getLogger("wms2mypl_kommiauftrag")
 process_messages = True
 
 
-def export_kommi_to_kernel(doc, options):
+def export_kommi_to_kernel(doc):
     """Pushes Kommiauftrag into kernel."""
-    
+    global options
     kommiauftragsnr = doc['kommiauftragsnr']
-    softmschein = husoftm.lieferscheine.Kommibeleg(kommiauftragsnr)
+    # softmschein = husoftm.lieferscheine.Kommibeleg(kommiauftragsnr)
     
     attributes = {'auftragsnummer': kommiauftragsnr,
                   # TODO: remove liefertermin from Kernel
@@ -42,7 +41,7 @@ def export_kommi_to_kernel(doc, options):
                   'kundenname': doc['name1'],
                   'land': doc['land'],
                   'plz': doc['plz'],
-                  'art': softmschein.art, # ???
+                  'art': doc['auftragsart'],
                   'fixtermin': doc.get('fixtermin', False),
                   # TODO: Was ist mit den folgenden Attributen?
                   #'anbruch': kommibeleg.anbruch,
@@ -73,18 +72,17 @@ def export_kommi_to_kernel(doc, options):
 
 def handle_message(message):
     """Callback function used by channel.basic_consume for adding 'Warenzugang' to myPL."""
+    global options
     
-    body = json.loads(message.body)
-    if export_kommi_to_kernel(body):
-        channel.basic_ack(message.delivery_tag)
-    
-    # umlagerung_to_unit() macht die wirkliche arbeit und überträgt in den kernel.
+    doc = cs.messaging.decode(message.body)
+    if export_kommi_to_kernel(doc):
+        write_journal(doc, options.log)
+        message.channel.basic_ack(message.delivery_tag)
 
 
-# Might be used as a signal hander
 def cancel_processing():
     """ Stop consuming messages from RabbitMQ """
-    global process_messages
+    global process_messages, channel
 
     process_messages = False
     LOGGER.info("Exiting")
@@ -100,21 +98,17 @@ def main():
 
     parser = optparse.OptionParser()
     parser.version = "%%prog"
-    parser.description = ('Uebernimmt Warenzugangsmeldungen aus einer Warteschlange und lagert diese im'
-                         + 'myPL ein (EINLAG). Erstellt ausserdem eine Palettenbewegung an einen geeigneten'
-                         + 'Platz und  erzeugt eine Palettenfahne.')
+    parser.description = 'Erzeugt Kommissionerauftraege (Provpipeline Entries) im kernelE'
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", help='Lager, das bearbeitet werden soll')
     parser.add_option('--in', dest="in_queues", action='append',
                       help='Name der Queue, aus der gelesen werden soll. Wird diese Parameter mehrfach '
                       +'angegeben, wird aus mehreren Queues gelesen. Beispiel --in=erp.ic-wms.warenzugang.')
     parser.add_option('--log', default='/var/log/wms2mypl_kommiauftrag.log',
-                      help='Wo sollen die Nachrichten protokolliert werden? [%default]')
+                      help='Wohin sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--quiet', action='store_true', help='Uebliche Ausgaben unterdruecken')
     parser.add_option('--debug', action='store_true', help='Debugging Informationen ausgeben')
     parser.add_option('--dry-run', action='store_true', help='Keine Nachrichten absenden und loeschen')
-    parser.add_option('--maxnum', type='int',
-                      help='Maximale Anzahl der zu transferierenden Datensaetze [default: unlimited]')
     options, args = parser.parse_args()
     if args:
         parser.error("incorrect number of arguments")
@@ -123,14 +117,13 @@ def main():
     if not options.in_queues:
         parser.error("'--in' nicht gesetzt")
 
-    # Wird nicht channel jedesmal überschrieben und nur der letzte dann verwendet?
     channel = None
     for qname in options.in_queues:
         inqueuename = "%s#%s" % (qname, options.lager)
-        channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
+        channel = cs.messaging.setup_queue(inqueuename, channel=channel, durable=True)
         consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
-    # catch Signals
+    # Install signal handlers
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
@@ -144,8 +137,7 @@ def main():
     LOGGER.info("Using %s" % settings.__file__)
     LOGGER.info("Waiting for messages ...")
 
-    # Loop while process_messages is True - could be set to False by signal handlers
-    last_requeue = 0
+    last_requeue = time.time()
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()

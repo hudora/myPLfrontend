@@ -13,16 +13,15 @@ Rewritten by Maximillian Dornseif 2008-12, 2010-01.
 Copyright (c) 2007-2010 HUDORA GmbH.
 """
 
-import cs.messaging as messaging
+import cs.messaging
+from cs.messaging.journal import write_journal
 import cs.zwitscher
 import datetime
 import husoftm.kunden
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import husoftm.versandart
-import huTools.NetStringIO as NetStringIO
 import optparse
-import simplejson as json
 import sys
 import time
 
@@ -35,14 +34,6 @@ def display(msg):
     if options.debug or (not options.quiet):
         print (msg)
         sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
 
 
 def transfer_kommis(lager):
@@ -137,6 +128,7 @@ def transfer_kommis(lager):
                                           kommissionierbelegnr=position.kommissionierbelegnr,
                                           satznummer=position.satznr))
 
+        doc['auftragsart'] = softmschein.art
         if softmschein.fixtermin or softmschein.art == 'WA':
             doc['fixtermin'] = True
 
@@ -161,7 +153,7 @@ def transfer_kommis(lager):
 
         if not options.dry_run:
             # log file for replaying in case of errors
-            write_journal(doc)
+            write_journal(doc, options.log)
             messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.%s' % outqueuename)
             isa00.delete(lock_handle)
