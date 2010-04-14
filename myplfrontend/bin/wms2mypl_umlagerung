@@ -10,69 +10,24 @@ Rewritten by Maximillian Dornseif 2008-12, 2009-12
 Copyright (c) 2007-2010 HUDORA GmbH.
 """
 
-# From http://superjared.com/entry/django-and-crontab-best-friends/
-from django.core.management import setup_environ
-import settings
-setup_environ(settings)
-
-import mypl.kernel
 import cs.masterdata.article
-import cs.messaging as messaging
+import cs.messaging
+from cs.messaging.journal import write_journal
 import cs.printing
 import cs.zwitscher
-import huTools.NetStringIO as NetStringIO
+
 import myplfrontend.belege
+from myplfrontend.kernelapi import Kerneladapter
+from myplfrontend.tools import split_quantities
 import optparse
 import signal
-import simplejson as json
 import sys
 import time
+import logging
 
-
+LOGGER = logging.getLogger("myplfrontend.wms2mypl_umlagerung")
 process_messages = True
 message_count = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    if options.debug:
-        print logdata
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
-
-
-def split_quantities(quantity, per_unit):
-    """Splits quantity in units not larger than per_unit.
-
-    >>> split_quantities(512.0, 100.0)
-    [100, 100, 100, 100, 100, 12]
-    >>> split_quantities('512', None)
-    [512]
-    >>> split_quantities('512.0', 1000)
-    [512]
-    >>> split_quantities(512, -10)
-    [512]
-    """
-
-    quantity = int(float(quantity))
-    if not per_unit or per_unit < 1:
-        return [quantity]
-    else:
-        per_unit = int(float(per_unit))
-        ret = []
-        while quantity > 0:
-            ret.append(min([quantity, per_unit]))
-            quantity -= per_unit
-        return ret
 
 
 def move_units_to_good_location(muis):
@@ -80,11 +35,11 @@ def move_units_to_good_location(muis):
     and the movement-note.
     """
 
-    kernel = mypl.kernel.Kerneladapter()
+    kernel = Kerneladapter()
     movementids = []
     for mui in muis:
-        # TODO: move to new HTTP-API
         movementids.append((kernel.init_movement_to_good_location(mui), mui))
+    
     for movement_id, mui in movementids:
         if movement_id:
             # Umlagerbeleg drucken
@@ -96,14 +51,15 @@ def move_units_to_good_location(muis):
 
 
 def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
-    """Converts a Umlagerungsposition to an Unit in the Kernel. Returns MUIs generated."""
+    """Converts a Umlagerungsposition to a Unit in the Kernel. Returns MUIs generated."""
 
     muis = []
+    
     if menge < 1:
         msg = 'Umlagerung %s hat Position ohne Menge (0) fuer %s #warn' % (batchnr, artnr)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        display(msg.encode('utf-8', 'ignore'))
-        return []
+        LOGGER.error(msg)
+        return None # this leaves a stale message
 
     product = cs.masterdata.article.eap(artnr)
     msg = None
@@ -121,42 +77,37 @@ def umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen):
     if msg:
         msg = "%s/%s" % (guid, msg)
         cs.zwitscher.zwitscher(msg, username='mypl')
-        display(msg.encode('utf-8', 'ignore'))
-        # FIXME: Hier wird nichts gelogt, ausser als zwitscher Nachricht. Dh. wir können nicht genau
-        #        nachvollziehen, welche Daten zu Problemen geführt haben.
-        return [] # this leaves a stale message
+        LOGGER.error(msg)
+        return None # this leaves a stale message
 
     # Einlagerung auf Paletten aufteilen
     elements = [(quantity, artnr, product['pallet_height'])
                 for quantity in split_quantities(menge, product['palettenfaktor'])]
     referenzen.update({'komminr': str(batchnr), 'source': 'umlagerung', 'paletten': len(elements)})
 
-    # log file for replaying in case of errors
-    write_journal((guid, "EINLAG", elements, referenzen))
-
-    kernel = mypl.kernel.Kerneladapter()
+    kernel = Kerneladapter()
     if not options.dry_run:
         # TODO: move to new HTTP-API
         # mypl.kernel.mypl_kerneladapter.KernelError: error during storing of [(126, '76404', 1850)]: ['error', 'duplicate_id', '3106032-19']
         try:
             muis = kernel.store_at_location_multi(guid, "EINLAG", elements, referenzen)
-            doc = messaging.empty_message('wms2mypl_einlagerungen',
-                                           guid=guid,
-                                           audit_trail='wms2mypl_einlagerungen',
-                                           audit_info='Auftrag aus SoftM in den KErnel geschrieben')
+            doc = cs.messaging.empty_message('wms2mypl_einlagerungen',
+                                             guid=guid,
+                                             audit_trail='wms2mypl_einlagerungen',
+                                             audit_info='Auftrag aus SoftM in Kernel geschrieben')
             doc.update({'to_location': "EINLAG", 'elements': elements, 'referenzen': referenzen, 'muis': muis})
-            messaging.publish(doc, 'log.wms-mypl.warenzugang')
+            write_journal(doc, options.log)
+            cs.messaging.publish(doc, 'log.wms-mypl.warenzugang')
         except mypl.kernel.mypl_kerneladapter.KernelError, msg:
             if "'error', 'duplicate_id'" in str(msg):
                 msg = 'Umlagerung %s kommt doppelt im myPL vor #warn' % batchnr
                 cs.zwitscher.zwitscher(msg, username='mypl')
                 print msg
-                return [None] # special-cased um die Nachricht aus der Queue zu nehmen.
+                return []
             else:
                 raise
 
-    if options.debug:
-        print muis
+    LOGGER.debug("%r" % muis)
     return muis
 
 
@@ -168,20 +119,20 @@ def handle_message(message):
         cancel_processing()
         return
 
-    body = json.loads(message.body)
+    body = cs.messaging.decode(message.body)
     guid, menge, artnr = body['guid'], body['menge'], body['artnr']
     batchnr, referenzen = body['batchnr'], body['referenzen']
-    if options.debug:
-        print message_count, guid, menge, artnr, batchnr, referenzen
+    
+    LOGGER.debug(", ".join((message_count, guid, menge, artnr, batchnr, referenzen)))
+    
     # umlagerung_to_unit() macht die wirkliche arbeit und überträgt in den kernel.
     muis = umlagerung_to_unit(guid, menge, artnr, batchnr, referenzen)
-    if muis:
+    if not muis is None:
         channel.basic_ack(message.delivery_tag)
-        # Wenn wir move_units_to_good_location() nicht aufrufen, kümmert sich der Kernel später
-        # selbst um das wegräumen der Paletten, wir sind also im grunde längst fertig.
+        # Wenn wir move_units_to_good_location() nicht aufrufen, kümmert sich der Kernel später selbst
+        # um das wegräumen der Paletten, wir sind also im grunde längst fertig.
         if not options.no_movements:
-            if muis != [None]:
-                move_units_to_good_location(muis)
+            move_units_to_good_location(muis)
         message_count += 1
 
 
@@ -192,7 +143,7 @@ def cancel_processing():
 
     # Do this so we exit our main loop
     process_messages = False
-    display("Exiting")
+    LOGGER.info("Exiting")
     # Tell the channel you dont want to consume anymore
     for consumer_tag in consumer_tags:
         channel.basic_cancel(consumer_tag)
@@ -230,20 +181,27 @@ def main():
     if not options.in_queues:
         parser.error("'--in' nicht gesetzt")
 
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
+
     channel = None
     for qname in options.in_queues:
         inqueuename = "%s#%s" % (qname, options.lager)
-        channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
+        channel = cs.messaging.setup_queue(inqueuename, channel=channel, durable=True)
         consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
-    # catch Signals
+    # Install signal handlers
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    display("waiting for messages ...")
+    LOGGER.info("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers
-    last_requeue = 0
+    last_requeue = time.time()
     while process_messages:
         # Wait for a message and wait for `handle_message` callback beeing called
         channel.wait()

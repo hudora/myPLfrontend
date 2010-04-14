@@ -134,7 +134,6 @@ def main():
     else:
         LOGGER.setLevel(logging.INFO)
 
-    LOGGER.info("Using %s" % settings.__file__)
     LOGGER.info("Waiting for messages ...")
 
     last_requeue = time.time()
