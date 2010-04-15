@@ -190,6 +190,8 @@ def create_hulog_msg(kommibeleg, hugogramm):
     fields = ['name1', 'name2', 'strasse', 'plz', 'ort', 'land']
     doc = dict((field, getattr(kommibeleg, field)) for field in fields)
     doc['lieferscheinnr'] = kommibeleg.kommissionierbelegnr
+    if kommibeleg.lager == 38:
+        doc['source'] = 'Maeuler'
     doc['spedition'] = hugogramm['spedition']
     doc['positionen'] = hugogramm['trackingnr']
     msg = messaging.empty_message('myplfrontend.bin.wms2ic_rueckmeldung',
