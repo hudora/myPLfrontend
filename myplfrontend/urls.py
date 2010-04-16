@@ -29,5 +29,12 @@ urlpatterns += patterns('myplfrontend.views',
     (r'^komissionierung/infopanel/$', 'info_panel'),
     (r'^artikel_heute/$', 'artikel_heute'),
     (r'^requesttracker/$', 'requesttracker'),
-    (r'^softmdifferences/$', 'softmdifferences'),
+    url(r'^stockdifferences/$', 'bestandsabweichung', name="mypl-stock_differences"),
+)
+
+# ========
+# = MYPL =
+# ========
+urlpatterns += patterns('myplfrontend.views.mypl',
+    url(r'^create_movement/$', 'create_movement', name="mypl-create_movement"),
 )

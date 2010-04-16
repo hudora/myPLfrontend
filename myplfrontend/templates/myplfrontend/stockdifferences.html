@@ -5,17 +5,17 @@
 {% block content %}
 <div id="content_main">
     <table>
-        <tr><th>Artikel</th><th>Kernel-Menge</th><th>SoftM-Menge</th></tr>
+        <tr><th>ArtNr.</th><th>Menge in myPL</th><th>Menge in SoftM</th></tr>
         {% for entry in differences %}
         <tr class="{% cycle odd,even %}">
             <td>
                 {{ entry.artnr }}
             </td>
             <td>
-                {{ entry.kernel_menge }}
+                {{ entry.mypl }}
             </td>
             <td>
-                {{ entry.softm_menge }}
+                {{ entry.softm }}
             </td>
         </tr>
         {% endfor %}
