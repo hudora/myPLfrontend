@@ -43,8 +43,9 @@ def find_stock_differences():
     mypl_diff = dict(mypl_bestand - softm_bestand)
     softm_diff = dict(softm_bestand - mypl_bestand)
     
-    return [{'artnr': artnr, 'softm': softm_bestand.get(artnr, 0), 'mypl': mypl_bestand.get(artnr, 0)}
-                for artnr in itertools.chain(mypl_diff.keys(), softm_diff.keys()]
+    return [
+                    {'artnr': artnr, 'softm': softm_bestand.get(artnr, 0), 'mypl': mypl_bestand.get(artnr, 0)}
+                for artnr in itertools.chain(mypl_diff.keys(), softm_diff.keys())]
 
 
 def format_locname(locname):

@@ -15,8 +15,8 @@ import django
 DJANGO_ROOT = os.path.dirname(os.path.realpath(django.__file__))
 SITE_ROOT = os.path.dirname(os.path.realpath(__file__))
 
-DEBUG = False
-MEDIA_URL = 'http://s.hdimg.net/myplfrontend/'
+DEBUG = True
+MEDIA_URL = 'http://s.hdimg.net/'
 SESSION_COOKIE_DOMAIN = 'hudora.biz' # or hudora.de
 ROOT_URLCONF = 'urls'
 SITE_ID = 2 # intern.hudora.biz
@@ -66,7 +66,7 @@ MIDDLEWARE_CLASSES = (
 import os
 
 ADMIN_MEDIA_PREFIX = 'http://s.hdimg.net/djangoadmin/1.0.2/'
-INTERNAL_IPS = ('127.0.0.1')
+INTERNAL_IPS = ('127.0.0.1', )
 
 # Redirect to this URL after login
 LOGIN_REDIRECT_URL = '/'
@@ -93,18 +93,17 @@ os.environ['PYJASPER_SERVLET_URL'] = 'http://jasper.local.hudora.biz:8080/pyJasp
 
 COUCHDB_STORAGE_OPTIONS = {'server': "http://couchdb1.local.hudora.biz:5984"}
 
+#DATABASE_ENGINE = 'postgresql_psycopg2'
+#DATABASE_HOST = 'postgresql.local.hudora.biz'
+#DATABASE_NAME = 'hudora'
+#DATABASE_PASSWORD = 'ge3Xei2O'
+#DATABASE_USER = 'hudora'
 
-DATABASE_ENGINE = 'postgresql_psycopg2'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
-DATABASE_HOST = 'postgresql.local.hudora.biz'
-DATABASE_NAME = 'hudora'
-DATABASE_PASSWORD = 'ge3Xei2O'
-DATABASE_USER = 'hudora'
-
-DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
-DATABASE_HOST = ''
-DATABASE_NAME = ''
+DATABASE_ENGINE = 'sqlite3'
+DATABASE_NAME = 'test.db'
 DATABASE_PASSWORD = ''
-DATABASE_USER = 'testdb'
+DATABASE_HOST = ''
+DATABASE_USER = ''
 
 SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
 EMAIL_HOST = 'mail.hudora.biz'
