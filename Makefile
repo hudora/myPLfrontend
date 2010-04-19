@@ -1,5 +1,6 @@
 # setting the PATH seems only to work in GNUmake not in BSDmake
 PATH := ./testenv/bin:$(PATH)
+S3BUCKET = s.hdimg.net
 
 default: dependencies check test
 
