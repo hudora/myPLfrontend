@@ -68,6 +68,9 @@ import os
 ADMIN_MEDIA_PREFIX = 'http://s.hdimg.net/djangoadmin/1.0.2/'
 INTERNAL_IPS = ('127.0.0.1')
 
+# Redirect to this URL after login
+LOGIN_REDIRECT_URL = '/'
+
 TIME_FORMAT = 'H:i'
 TIME_ZONE = 'Europe/Amsterdam'
 DATETIME_FORMAT = 'Y-m-d H:i:s'
