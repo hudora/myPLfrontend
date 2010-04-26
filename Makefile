@@ -1,5 +1,6 @@
 # setting the PATH seems only to work in GNUmake not in BSDmake
 PATH := ./pythonenv/bin:$(PATH)
+S3BUCKET = s.hdimg.net
 
 default: dependencies check test
 
@@ -31,6 +32,9 @@ upload: build
 
 install: build
 	sudo python setup.py install
+
+cdn:
+	s3put -a $(AWS_ACCESS_KEY_ID) -s $(AWS_SECRET_ACCESS_KEY) -b $(S3BUCKET) -g public-read -p $(PWD)/static/ static
 
 runserver: dependencies
 	python manage.py runserver
