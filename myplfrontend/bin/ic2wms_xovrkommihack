@@ -15,6 +15,7 @@ Copyright (c) 2007-2010 HUDORA GmbH.
 
 import cs.messaging as messaging
 import cs.zwitscher
+from cs.messaging.journal import write_journal
 import datetime
 import husoftm.kunden
 import husoftm.lieferscheine
@@ -24,24 +25,12 @@ import optparse
 import simplejson as json
 import sys
 import time
+import os.path
+import logging
 
 
+LOGGER = logging.getLogger(os.path.basename(__file__))
 rowcounter = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
 
 
 def transfer_kommis(lager):
@@ -58,7 +47,7 @@ def transfer_kommis(lager):
     for lsnr in lsnrs[:5]:
         ls = husoftm.lieferscheine.Lieferschein(lsnr)
         komminr, auftragsnr, satznr, lagernr = [ls.kommissionierbelegnr, ls.auftragsnr, ls.satznr, ls.lager]
-        display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
+        LOGGER.debug("%r" % ([komminr, auftragsnr, satznr, lagernr]))
 
         if int(lagernr) != lager:
             if options.debug:
@@ -138,8 +127,7 @@ def transfer_kommis(lager):
             doc['versandartschluessel'] = softmschein.versandart
             doc['versandart'] = versandart
 
-        if options.debug:
-            display(doc)
+        LOGGER.debug(doc)
 
         if not options.dry_run:
             # log file for replaying in case of errors
@@ -177,6 +165,13 @@ def main():
         parser.error("'--lager' nicht gesetzt")
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
+
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
 
     while True:
         for lager in options.lager:

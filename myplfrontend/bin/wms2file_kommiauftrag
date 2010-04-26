@@ -18,32 +18,16 @@ import signal
 import sys
 import simplejson as json
 import time
+import logging
+
 
 # globals
+LOGGER = logging.getLogger(os.path.basename(__file__))
 options = None
 process_messages = True
 channel = None
 consumer_tags = []
 message_count = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    # TODO move to messaging.tools (?)
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    # TODO move to messaging.tools (?)
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    if options.debug:
-        print logdata
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
 
 
 def _create_filename(path):
@@ -76,7 +60,7 @@ def cancel_processing():
 
     # Do this so we exit our main loop
     process_messages = False
-    display("Exiting")
+    LOGGER.info("Exiting")
     # Tell the channel you dont want to consume anymore
     for consumer_tag in consumer_tags:
         channel.basic_cancel(consumer_tag)
@@ -107,6 +91,13 @@ def parse_commandline():
     if not opts.in_queues:
         parser.error("'--in' nicht gesetzt")
 
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
+
     return opts, args
 
 
@@ -120,7 +111,7 @@ def main(opts, args):
     for qname in options.in_queues:
         for lager in options.lager:
             inqueuename = "%s#%s" % (qname, lager)
-            display('listening to %s ...' % inqueuename)
+            LOGGER.info('listening to %s ...' % inqueuename)
             channel = messaging.setup_queue(inqueuename, channel=channel, durable=True)
             consumer_tags.append(channel.basic_consume(queue=inqueuename, callback=handle_message))
 
@@ -128,7 +119,7 @@ def main(opts, args):
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    display("waiting for messages ...")
+    LOGGER.info("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers
     last_requeue = time.time()
@@ -139,9 +130,10 @@ def main(opts, args):
             # every 3600 seconds Request non-acknowledged messages to be re-delivered
             channel.basic_recover(requeue=False)
             last_requeue = time.time()
-            display("%d messages processed, recovering channel" % message_count)
+            LOGGER.info("%d messages processed, recovering channel" % message_count)
 
     channel.close()
+    channel.connection.close()
     return 0
 
 
