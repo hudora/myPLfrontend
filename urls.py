@@ -8,9 +8,7 @@ from django.contrib import admin
 admin.autodiscover()
 
 urlpatterns = patterns('',
-# admin stuff
-(r'^admin/doc/', include('django.contrib.admindocs.urls')),
-(r'^admin/(.*)', 'admin.site.root'),
+(r'^admin/(.*)', admin.site.root),
 (r'^accounts/login/$', 'django.contrib.auth.views.login'),
 (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
 (r'^accounts/password_change/$', 'django.contrib.auth.views.password_change'),
@@ -26,7 +24,11 @@ urlpatterns = patterns('',
 # include myplfrontend
 (r'^myplfrontend/', include('myplfrontend.urls')),
 (r'^$', 'django.views.generic.simple.redirect_to', {'url' : '/myplfrontend/'}),
+
+# stapler terminal
+(r'^stapler/', include('stapler.urls')),
 )
+
 
 # when in development mode, serve static files 'by hand'
 # in production the files should be placed at http://s.hdimg.net/myplfrontend/
