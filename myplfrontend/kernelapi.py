@@ -312,7 +312,7 @@ class Kerneladapter(object):
         # self._post('')...
     
     # XXX: rename
-    def get_next_job(self, probability):
+    def get_next_job(self, probability=0.75):
         """
         XXX
         
@@ -354,7 +354,7 @@ class Kerneladapter(object):
     
     def commit_picklist(self, picklist_id):
         """Picklist zurückmelden"""
-        return self._post('pick/%s' % picklist_id)1
+        return self._post('pick/%s' % picklist_id)
     ##### END #####
     
     def set_kommiauftrag_priority(self, kommiauftragnr, begruendung, priority):
