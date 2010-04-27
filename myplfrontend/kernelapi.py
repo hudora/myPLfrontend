@@ -127,7 +127,9 @@ class Kerneladapter(object):
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'DELETE', data)
         if response.status == 204:
-            return content
+            if content:
+                return content
+            return True
         elif response.status == 404:
             return None
         else:
