@@ -347,11 +347,15 @@ class Kerneladapter(object):
             self.commit_picklist(belegnr)
         else:
             raise RuntimeError("Unknown provisioning type: %s" % belegnr)
-    
-    def commit_retrieval(self, retrieval_id):
-        """Retrieval zurückmelden"""
-        raise NotImplementedError("Not implemented yet")
     ##### END #####
+    
+    def commit_retrieval(self, retrieval_id, orderlines, **kwargs):
+        """
+        Retrieval zurückmelden
+        Es werden die orderlines (Tupel aus Artikelnr und Menge) sowie
+        weitere Attribute (z.B. "picker") übergeben.
+        """
+        return self._post('retrieval/%s' % retrieval_id, [orderlines, kwargs])
     
     def commit_picklist(self, picklist_id, orderlines, **kwargs):
         """
