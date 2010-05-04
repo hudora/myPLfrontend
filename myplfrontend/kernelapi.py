@@ -301,10 +301,14 @@ class Kerneladapter(object):
         """
         return self._post("kommiauftrag", auftrag)
     
-    # TODO
-    def init_movement_to_good_location(self, params):
-        raise NotImplementedError('pleeze!')
-        # self._post('')...
+    def init_movement_to_good_location(self, mui):
+        """
+        Initiiert ein Movement einer Mui.
+        
+        Diese Funktion wird beispielsweise beim Einbuchen von Findlinen
+        von Platz FNDLNG aus verwendet.
+        """
+        return self._post('init_movement_to_good_location', [mui])
     
     # TODO
     def store_at_location_multi(self, params):
