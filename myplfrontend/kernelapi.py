@@ -100,7 +100,7 @@ class Kerneladapter(object):
         else:
             raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (response.status, content))
     
-    def _post(self, path, **kwargs):
+    def _post(self, path, data):
         """
         Funktion, um Daten per HTTP POST an den Kernel zu übertragen.
         
@@ -108,7 +108,7 @@ class Kerneladapter(object):
         Der Rückgabewert ist ein dict.
         """
         
-        encoded_data = json.dumps(kwargs, separators=(',', ':'))
+        encoded_data = json.dumps(data, separators=(',', ':'))
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'POST', body=encoded_data)
 
@@ -326,18 +326,18 @@ class Kerneladapter(object):
             return self.get_next_movement()
     
     # XXX: implement
-    def get_next_retrieval(self):
+    def get_retrievallist(self):
         raise NotImplementedError('not implemented yet')
     
     # XXX: rename
-    def get_next_movement(self, **kwargs):
+    def get_movementlist(self, **kwargs):
         """Get movement (or retrieval)"""
-        movement = self._post('movement', **kwargs)
+        movement = self._post('movement', kwargs)
         return movement
     
     def commit_movement(self, movement_id):
         """Movement zurückmelden"""
-        return self._post('movement/%s' % movement_id)
+        return self._post('movement/%s' % movement_id, ['XXX'])
 
     #### BEGIN OF DRAFT CODE ####
     def commit_provisioning(self, belegnr):
@@ -351,12 +351,17 @@ class Kerneladapter(object):
     def commit_retrieval(self, retrieval_id):
         """Retrieval zurückmelden"""
         raise NotImplementedError("Not implemented yet")
-    
-    def commit_picklist(self, picklist_id):
-        """Picklist zurückmelden"""
-        return self._post('pick/%s' % picklist_id)
     ##### END #####
     
+    def commit_picklist(self, picklist_id, orderlines, **kwargs):
+        """
+        Picklist zurückmelden
+        
+        Es werden die orderlines (Tupel aus Artikelnr und Menge) sowie
+        weitere Attribute (z.B. "picker") übergeben.
+        """
+        return self._post('pick/%s' % picklist_id, [orderlines, kwargs])
+
     def set_kommiauftrag_priority(self, kommiauftragnr, begruendung, priority):
         """Changes the priority of a Kommiauftrag."""
         return self._post("kommiauftrag/%s/priority" % kommiauftragnr,
