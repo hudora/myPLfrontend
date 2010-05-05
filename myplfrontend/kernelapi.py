@@ -316,7 +316,7 @@ class Kerneladapter(object):
         # self._post('')...
     
     # XXX: rename
-    def get_next_job(self, probability):
+    def get_next_job(self, probability=0.75):
         """
         XXX
         
@@ -343,15 +343,22 @@ class Kerneladapter(object):
         """Movement zurückmelden"""
         return self._post('movement/%s' % movement_id, ['XXX'])
 
-    #### BEGIN OF DRAFT CODE ####
     def commit_provisioning(self, belegnr):
+        raise NotImplementedError("Sorry.")
         if belegnr.startswith('r'):
             self.commit_retrieval(belegnr)
         elif belegnr.startswith('p'):
             self.commit_picklist(belegnr)
         else:
             raise RuntimeError("Unknown provisioning type: %s" % belegnr)
-    ##### END #####
+    
+    def commit_retrieval(self, retrieval_id):
+        """Retrieval zurückmelden"""
+        raise NotImplementedError("Not implemented yet")
+    
+    def commit_picklist(self, picklist_id):
+        """Picklist zurückmelden"""
+        return self._post('pick/%s' % picklist_id)
     
     def commit_retrieval(self, retrieval_id, orderlines, **kwargs):
         """

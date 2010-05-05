@@ -16,31 +16,19 @@ Copyright (c) 2007-2010 HUDORA GmbH.
 
 import cs.messaging as messaging
 import cs.zwitscher
+from cs.messaging.journal import write_journal
 import huTools.NetStringIO as NetStringIO
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
 import optparse
-import simplejson as json
 import sys
 import time
+import os.path
+import logging
 
 
+LOGGER = logging.getLogger(os.path.basename(__file__))
 rowcounter = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
 
 
 def transfer_umlagerungen(lager):
@@ -52,10 +40,10 @@ def transfer_umlagerungen(lager):
     rows = isk00.available_rows(fields="IKKBNR, IKKPOS, IKRMNG, IKSANR")
     outqueuename = u"%s#%s" % (options.out_queue, lager)
     messaging.setup_queue(outqueuename, durable=True)
-    display("Starting with oputput to %s..." % (outqueuename))
+    LOGGER.info("Starting with oputput to %s..." % (outqueuename))
 
     if rows:
-        display("Processing Messages")
+        LOGGER.info("Processing Messages")
     for row in rows:
         komminr, kommiposnr, menge, satznr = row
         artnr, lagernr = husoftm.lieferscheine.kbpos2artnr_zugangslager(komminr, kommiposnr)
@@ -63,12 +51,11 @@ def transfer_umlagerungen(lager):
         if int(lagernr) != lager:
             continue
 
-        if options.debug:
-            display("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
+        LOGGER.debug("%r" % ([komminr, kommiposnr, menge, satznr, artnr, lagernr]))
 
         rowcounter += 1
         if options.maxnum and (rowcounter > options.maxnum):
-            display("Maximum number of messages reached, exiting")
+            LOGGER.info("Maximum number of messages reached, exiting")
             sys.exit(0)
 
         lock_handle = isk00.lock(satznr)
@@ -78,7 +65,7 @@ def transfer_umlagerungen(lager):
             if options.debug:
                 print "couldn't lock the row", komminr
             continue
-            
+
         doc = messaging.empty_message('ic2wms_umlagerung',
                                       guid="%s-%s" % (komminr, kommiposnr),
                                       audit_trail='import_umlagerungen',
@@ -88,8 +75,7 @@ def transfer_umlagerungen(lager):
                         artnr=artnr,
                         referenzen={'kommiposnr': kommiposnr, 'charge': ''}))
 
-        if options.debug:
-            display(doc)
+        LOGGER.debug(doc)
 
         if not options.dry_run:
             # log file for replaying in case of errors
@@ -98,7 +84,7 @@ def transfer_umlagerungen(lager):
                 messaging.publish(doc, outqueuename)
                 messaging.publish(doc, 'log.%s' % outqueuename)
             else:
-                display("loesche position mit leerer menge")
+                LOGGER.info("loesche position mit leerer menge")
             isk00.delete(lock_handle)
         isk00.unlock(lock_handle)
 
@@ -132,6 +118,13 @@ def main():
         parser.error("'--lager' nicht gesetzt")
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
+
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
 
     while True:
         for lager in options.lager:

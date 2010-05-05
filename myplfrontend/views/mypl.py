@@ -16,10 +16,9 @@ import myplfrontend.belege
 from myplfrontend.kernelapi import Kerneladapter
 
 from cs.messaging import simple_message
-import cs.printing
 from cs.zwitscher import zwitscher
-from hudjango import PrinterChooser
 
+from hudjango import PrinterChooser
 
 PRINTERS = ("DruckerAllman", "DruckerLerdorf", "DruckerDraper")
 
@@ -134,7 +133,8 @@ def holen(request):
 def create_movement(request):
     """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
     
-    return HttpResponse('Geht im Moment nicht.')
+    return HttpResponse('Geht im Moment nicht.') # XXX
+    
     kerneladapter = Kerneladapter()
     printer = PrinterChooser(request, PRINTERS, "a4")
     

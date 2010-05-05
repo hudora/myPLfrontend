@@ -19,8 +19,10 @@ import signal
 import simplejson as json
 import sys
 import time
+import logging
 
 # globals
+LOGGER = logging.getLogger(os.path.basename(__file__))
 options = None
 process_messages = True
 channel = None
@@ -138,25 +140,6 @@ def kep(doc):
     return True
 
 
-def display(msg):
-    """Display messages based on command line options."""
-    # TODO move to messaging.tools (?)
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    # TODO move to messaging.tools (?)
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    if options.debug:
-        print logdata
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
-
-
 def filter_message(message):
     """Append / Remove information from messages.
 
@@ -218,7 +201,7 @@ def cancel_processing():
 
     # Do this so we exit our main loop
     process_messages = False
-    display("Exiting")
+    LOGGER.info("Exiting")
     # Tell the channel you dont want to consume anymore
     for consumer_tag in consumer_tags:
         channel.basic_cancel(consumer_tag)
@@ -251,6 +234,13 @@ def parse_commandline():
     if not opts.out_queues:
         parser.error("'--out' nicht gesetzt")
 
+    if options.debug:
+        LOGGER.setLevel(logging.DEBUG)
+    elif options.quiet:
+        LOGGER.setLevel(logging.ERROR)
+    else:
+        LOGGER.setLevel(logging.INFO)
+
     return opts, args
 
 
@@ -265,7 +255,7 @@ def main(opts, args):
     for qname in options.in_queues:
         channel = messaging.setup_queue(qname, channel=channel, durable=True)
         consumer_tags.append(channel.basic_consume(queue=qname, callback=handle_message))
-        display('listening to queue %s w/ consumer_tag %s on channel %s' % (qname, consumer_tags[-1], channel))
+        LOGGER.info('listening to queue %s w/ consumer_tag %s on channel %s' % (qname, consumer_tags[-1], channel))
 
     # configure outgoing queues
     for qname in options.out_queues:
@@ -276,7 +266,7 @@ def main(opts, args):
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: cancel_processing())
     signal.signal(signal.SIGINT, lambda signum, stack_frame: cancel_processing())
 
-    display("waiting for messages ...")
+    LOGGER.info("waiting for messages ...")
 
     # Loop while process_messages is True - could be set to False by signal handlers
     last_requeue = time.time()
@@ -287,9 +277,10 @@ def main(opts, args):
             # every 3600 seconds Request non-acknowledged messages to be re-delivered
             channel.basic_recover(requeue=False)
             last_requeue = time.time()
-            display("%d messages processed, recovering channel" % message_count)
+            LOGGER.info("%d messages processed, recovering channel" % message_count)
 
     channel.close()
+    channel.connection.close()
     return 0
 
 

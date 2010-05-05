@@ -1,0 +1,75 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>myPL Stapler</title>
+  <link rel="stylesheet" href="{{ MEDIA_URL }}jquery/css/jqtouch.min.css" type="text/css" media="all"/>
+  <link rel="stylesheet" href="{{ MEDIA_URL }}jquery/themes/apple/theme.min.css" type="text/css" media="all"/>
+  <link rel="stylesheet" href="{{ MEDIA_URL }}stapler/application.css" type="text/css" media="all"/>
+  <script src="{{ MEDIA_URL }}jquery/js/jquery-1.4.2.min.js" type="text/javascript"></script>
+  <script src="{{ MEDIA_URL }}jquery/js/jqtouch.min.js" type="text/javascript"></script>
+  <script src="{{ MEDIA_URL }}stapler/application.js" type="text/javascript"></script>
+  <script src="{{ MEDIA_URL }}stapler/pretty.js" type="text/javascript"></script>
+</head>
+<body>
+
+  <div id="login">
+    <div class="toolbar">
+      <h1>Anmeldung</h1>
+    </div>
+    <form class="login">
+      <ul id="loginForms">
+        <li><input type="text" name="username" id="username" placeholder="Benutzername"/></li>
+        <li><input type="password" name="password" id="password" placeholder="Passwort"/></li>
+      </ul>
+
+      <center><img id="loginSpinner" style="display: none;" src="{{ MEDIA_URL }}stapler/images/spinner.gif"/></center>
+
+      <ul id="loginSubmit"><li><a id="doLogin">Anmelden</a></li></ul>
+    </form>
+  </div>
+
+  <div id="movement">
+    <div class="toolbar">
+      <h1>Umlagerung</h1>
+      <a class="button" id="doLogout">Abmelden</a>
+    </div>
+
+    <div>
+      <ul class="movementData"><li> 
+        <table>
+          <tr><td>Von:</td><td id="moveSource"></td></tr>
+          <tr><td>Nach:</td><td id="moveDest"></td></tr>
+          <tr><td>Anzahl:&nbsp;</td><td id="moveQuantity"></td></tr>
+          <tr><td>Artnr.:</td><td id="moveArtnr"></td></tr>
+        </table>
+      </li></ul>
+      <input type="hidden" id="moveOid" value=""/>
+
+      <center><img id="movementSpinner" style="display: none;" src="{{ MEDIA_URL }}stapler/images/spinner.gif"/></center>
+
+      <div id="actionsButtons">
+        <ul><li><a id="commitMovement">Zurückmelden</a></li></ul>
+        <ul><li><a id="cancelMovement">Storno</a></li></ul>
+      </div>
+      <ul id="movementButtons"><li><a id="fetchMovement">Neue Umlagerung holen</a></li></ul>
+      <ul><li><a id="showHistory">Historie</a></li></ul>
+    </div>
+  </div>
+
+  <div id="history">
+    <div class="toolbar">
+      <h1>Historie</h1>
+      <a class="back" href="#home">Zur&uuml;ck</a> 
+    </div>
+
+    <ul id="historyList">
+      <li>Foobar</li>
+      <li>Car Cdr</li>
+      <li>Loop Me</li>
+    </ul>
+
+  </div>
+
+</body>
+</html>

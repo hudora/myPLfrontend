@@ -17,6 +17,9 @@ SITE_ROOT = os.path.dirname(os.path.realpath(__file__))
 
 DEBUG = True
 MEDIA_URL = 'http://s.hdimg.net/'
+#if DEBUG:
+#    MEDIA_URL = '/static/'
+
 SESSION_COOKIE_DOMAIN = 'hudora.biz' # or hudora.de
 ROOT_URLCONF = 'urls'
 SITE_ID = 2 # intern.hudora.biz
@@ -32,8 +35,8 @@ INSTALLED_APPS = (
     'hudoratools',
     'hudjango',
     'myplfrontend',
+    'stapler',
 )
-
 
 TEMPLATE_DIRS = (
     os.path.join(SITE_ROOT, 'generic_templates'),
@@ -93,17 +96,17 @@ os.environ['PYJASPER_SERVLET_URL'] = 'http://jasper.local.hudora.biz:8080/pyJasp
 
 COUCHDB_STORAGE_OPTIONS = {'server': "http://couchdb1.local.hudora.biz:5984"}
 
-#DATABASE_ENGINE = 'postgresql_psycopg2'
-#DATABASE_HOST = 'postgresql.local.hudora.biz'
-#DATABASE_NAME = 'hudora'
-#DATABASE_PASSWORD = 'ge3Xei2O'
-#DATABASE_USER = 'hudora'
+DATABASE_ENGINE = 'postgresql_psycopg2'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
+DATABASE_HOST = 'postgresql.local.hudora.biz'
+DATABASE_NAME = 'hudora'
+DATABASE_PASSWORD = 'ge3Xei2O'
+DATABASE_USER = 'hudora'
 
-DATABASE_ENGINE = 'sqlite3'
-DATABASE_NAME = 'test.db'
-DATABASE_PASSWORD = ''
-DATABASE_HOST = ''
-DATABASE_USER = ''
+#DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
+#DATABASE_HOST = ''
+#DATABASE_NAME = ''
+#DATABASE_PASSWORD = ''
+#DATABASE_USER = 'testdb'
 
 SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
 EMAIL_HOST = 'mail.hudora.biz'
@@ -116,3 +119,7 @@ ADMINS = (
 ADMINS = ()
 MANAGERS = ADMINS
 PREPEND_WWW = False
+
+os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAJ7UVXTSKZ6UFVGPA'
+os.environ['AWS_SECRET_ACCESS_KEY'] = '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'
+os.environ['S3BUCKET'] = 'originals.i.hdimg.net'
