@@ -138,15 +138,15 @@ def artikel_heute(request):
     
     artikel_heutel = []
     for artnr, quantity in products.items():
-        product = cs.masterdata.article.eap(artnr)
-        if product:
-            total_weight = quantity * float_or_0(product["package_weight"]) / 1000.0
-            total_volume = quantity * float_or_0(product["package_volume_liter"])
-            total_palettes = quantity / float_or_0(product["palettenfaktor"], default=1.0)
+        eap = cs.masterdata.article.eap(artnr)
+        if eap:
+            total_weight = quantity * eap.get("package_weight", 0) / 1000.0
+            total_volume = quantity * eap.get("package_volume_liter", 0)
+            total_palettes = quantity / eap.get("palettenfaktor", 1.0)
             artikel_heutel.append({'quantity': quantity,
                                    'artnr': artnr,
-                                   'name': product['name'],
-                                   'palettenfaktor': product['palettenfaktor'],
+                                   'name': eap['name'],
+                                   'palettenfaktor': eap.get('palettenfaktor', 1),
                                    'total_weight': total_weight,
                                    'total_volume': total_volume,
                                    'paletten': total_palettes})
