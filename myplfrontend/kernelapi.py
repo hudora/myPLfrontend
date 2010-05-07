@@ -115,6 +115,26 @@ def attributelist2dict_str(proplist):
     return attributes
 
 
+def cleanup_list(data):
+    """Cleanup retrieval- or movmentlists"""
+    lists = []
+    for data in data:
+        list_id, cid, destination, attributes, parts, positions = data
+        list_id = e2string(pick_list_id)
+        cid = e2string(cid)
+        destination = e2string(destination)
+        poslist = []
+        for position in positions:
+            pos_id, nve, source, quantity, product, posattributes = position
+            pos_id = e2string(pos_id)
+            nve = e2string(nve)
+            source = e2string(source)
+            product = e2string(product)
+            poslist.append((pos_id, nve, source, quantity, product, attributelist2dict_str(posattributes)))
+        lists.append((list_id, cid, destination, parts, attributelist2dict_str(attributes), poslist))
+    return lists
+
+
 class Kerneladapter(object):
     """Kerneladapter for KernelE"""
     
@@ -149,7 +169,6 @@ class Kerneladapter(object):
         """
         
         encoded_data = json.dumps(data, separators=(',', ':'))
-        print data, encoded_data
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'POST', body=encoded_data)
 
@@ -397,23 +416,23 @@ class Kerneladapter(object):
         """
         
         if random.random() < probability:
-            first, second = self.get_next_retrieval, self.get_next_movement
+            first, second = self.get_retrievallist, self.get_movementlist
         else:
-            first, second = self.get_next_movement, self.get_next_retrieval
+            first, second = self.get_movementlist, self.get_retrievallist
         job = first() or second()
         return job        
     
     def get_retrievallist(self, **kwargs):
-        """
-        Get retrievallist
-        """
-        return self._post('retrieval', kwargs)
+        """Get retrievallist"""
+        retrievallists = self._post('retrieval', kwargs)
+        if retrievallists:
+            return cleanup_list(retrievallists)
     
     def get_movementlist(self, **kwargs):
-        """
-        Get movementlist
-        """
-        return self._post('movement', kwargs)
+        """Get movementlist"""
+        movementlists = self._post('movement', kwargs)
+        if movementlists:
+            return cleanup_list(movementlists)
 
     def commit_provisioning(self, belegnr):
         """Beleg zurückmelden"""
