@@ -427,6 +427,7 @@ def kommiauftrag_nullen(request, kommiauftragnr):
         return HttpResponse("Fehler beim Nullen von %r" % kommiauftragnr, mimetype='text/plain', status=500)
 
 
+# TODO: rename to movement_stornieren
 @require_POST
 @permission_required('mypl.can_cancel_movement')
 def movement_stornieren(request, movement_id):

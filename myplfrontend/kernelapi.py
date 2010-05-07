@@ -120,7 +120,7 @@ def cleanup_list(data):
     lists = []
     for data in data:
         list_id, cid, destination, attributes, parts, positions = data
-        list_id = e2string(pick_list_id)
+        list_id = e2string(list_id)
         cid = e2string(cid)
         destination = e2string(destination)
         poslist = []
@@ -188,7 +188,9 @@ class Kerneladapter(object):
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'DELETE', data)
         if response.status == 204:
-            return content
+            if content:
+                return content
+            return True
         elif response.status == 404:
             return None
         else:
@@ -385,25 +387,9 @@ class Kerneladapter(object):
         if not kwargs:
             raise ValueError('No arguments given')
 
-        tmp = self._post('pick', kwargs)
-        
-        picklists = []
-        for piclist in tmp:
-            pick_list_id, cid, destination, attributes, parts, positions = piclist
-            pick_list_id = e2string(pick_list_id)
-            cid = e2string(cid)
-            destination = e2string(destination)
-            poslist = []
-            for position in positions:
-                (pos_id, nve, source, quantity, product, posattributes) = position
-                pos_id = e2string(pos_id)
-                nve = e2string(nve)
-                source = e2string(source)
-                product = e2string(product)
-                poslist.append((pos_id, nve, source, quantity, product,
-                                attributelist2dict_str(posattributes)))
-            picklists.append((pick_list_id, cid, destination, parts, attributelist2dict_str(attributes), poslist))
-        return picklists
+        picklist = self._post('pick', kwargs)
+        if picklist:
+            return cleanup_list(picklist)
     
     # XXX: rename
     def get_next_job(self, probability=0.75):
@@ -430,9 +416,7 @@ class Kerneladapter(object):
     
     def get_movementlist(self, **kwargs):
         """Get movementlist"""
-        movementlists = self._post('movement', kwargs)
-        if movementlists:
-            return cleanup_list(movementlists)
+        return self._post('movement', kwargs)
 
     def commit_provisioning(self, belegnr):
         """Beleg zurückmelden"""
