@@ -74,8 +74,8 @@ def fetch_movement(request):
     # vom Kernel bekommen zeigen wir auf dem iPhone ebenfalls einen Fehler an.
     except Staplerjob.DoesNotExist:
         try:
-            #movement = Kerneladapter().get_next_movement(attr='%s via myPL Stapler' % request.user.username)
-            movement = _get_dummy_movement()
+            movement = Kerneladapter().get_next_movement(attr='%s via myPL Stapler' % request.user.username)
+            #movement = _get_dummy_movement()
             zwitscher("Staplerauftrag %s wurde geladen" % movement['oid'], username="stapler")
         except Exception:
             return HttpRespone('{"status":"exception"}', mimetype='application/json')
