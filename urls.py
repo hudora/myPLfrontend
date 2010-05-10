@@ -8,6 +8,18 @@ from django.contrib import admin
 admin.autodiscover()
 
 urlpatterns = patterns('',
+<<<<<<< HEAD
+    (r'^admin/doc/', include('django.contrib.admindocs.urls')),
+    (r'^admin/(.*)', 'admin.site.root'),
+    (r'^accounts/', include('django.contrib.auth.urls')),
+    
+    # ensure requests to favicon don't clutter logs
+    (r'favicon.ico', 'django.views.generic.simple.redirect_to', {'url': 'http://s.hdimg.net/layout06/favicon.png'}),
+    
+    # include myplfrontend
+    (r'^myplfrontend/', include('myplfrontend.urls')),
+    (r'^$', 'django.views.generic.simple.redirect_to', {'url' : '/myplfrontend/'}),
+=======
 (r'^admin/(.*)', admin.site.root),
 (r'^accounts/login/$', 'django.contrib.auth.views.login'),
 (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
@@ -27,6 +39,7 @@ urlpatterns = patterns('',
 
 # stapler terminal
 (r'^stapler/', include('stapler.urls')),
+>>>>>>> 3dacb4776930bbe29aec986de01f028e6c91ce17
 )
 
 

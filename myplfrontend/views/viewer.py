@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""View functions for myplfrontend."""
+"""
+myPLfrontent-Views für Informationen ("myPL viewer")
+
+Die "klassischen" myPL-views befinden sich in views/mypl.py
+"""
 
 from django.contrib.auth.decorators import permission_required
 from django.http import HttpResponseRedirect, Http404, HttpResponse
@@ -10,19 +14,17 @@ from django.template import RequestContext
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import require_POST
 
-import myplfrontend.belege
 import myplfrontend.tools
 from myplfrontend.forms import PalletHeightForm
 from myplfrontend.kernelapi import Kerneladapter, fix_timestamp
 
 import cs.masterdata.article
-import cs.printing
 import cs.zwitscher
 import itertools
 import husoftm.bestaende
 from huTools.robusttypecasts import float_or_0
 
-import hudjango
+from hudjango import PrinterChooser
 from hudjango.auth.decorators import require_login
 
 
@@ -136,15 +138,15 @@ def artikel_heute(request):
     
     artikel_heutel = []
     for artnr, quantity in products.items():
-        product = cs.masterdata.article.eap(artnr)
-        if product:
-            total_weight = quantity * float_or_0(product["package_weight"]) / 1000.0
-            total_volume = quantity * float_or_0(product["package_volume_liter"])
-            total_palettes = quantity / float_or_0(product["palettenfaktor"], default=1.0)
+        eap = cs.masterdata.article.eap(artnr)
+        if eap:
+            total_weight = quantity * eap.get("package_weight", 0) / 1000.0
+            total_volume = quantity * eap.get("package_volume_liter", 0)
+            total_palettes = quantity / eap.get("palettenfaktor", 1.0)
             artikel_heutel.append({'quantity': quantity,
                                    'artnr': artnr,
-                                   'name': product['name'],
-                                   'palettenfaktor': product['palettenfaktor'],
+                                   'name': eap['name'],
+                                   'palettenfaktor': eap.get('palettenfaktor', 1),
                                    'total_weight': total_weight,
                                    'total_volume': total_volume,
                                    'paletten': total_palettes})
@@ -369,7 +371,6 @@ def kommiauftrag_list(request):
                               context_instance=RequestContext(request))
 
 
-@require_login
 @permission_required('mypl.can_change_priority')
 def kommiauftrag_set_priority(request, kommiauftragnr):
     priority = int(request.POST.get('priority', '').strip('p'))
@@ -458,35 +459,12 @@ def requesttracker(request):
     """Display a table containing requesttracker data from kernelE."""
     kerneladapter = Kerneladapter()
     tracking_infos = kerneladapter.requesttracker()
-    return render_to_response('myplfrontend/requesttracker.html', dict(tracking_infos=tracking_infos),
+    return render_to_response('myplfrontend/requesttracker.html', {'tracking_infos': tracking_infos},
                               context_instance=RequestContext(request))
 
 
-def softmdifferences(request):
+def bestandsabweichung(request):
     """Show the differences between SoftM and myPL stock."""
-    differences = myplfrontend.tools.find_softm_differences()
-    return render_to_response('myplfrontend/softmdifferences.html', {'differences': differences},
+    differences = myplfrontend.tools.find_stock_differences()
+    return render_to_response('myplfrontend/stockdifferences.html', {'differences': differences},
                               context_instance=RequestContext(request))
-
-
-##########
-### Views, die schreibend auf das System zugreifen
-##########
-
-@require_login
-@require_POST
-def get_movement(request):
-    """Hole die nächste Umlagerung"""
-
-    printer = hudjango.PrinterChooser(request, ('DruckerAllman', ), 'label')
-    movement = kerneladapter.get_next_movement(user=request.user.username,
-                                               reason='manuell aus Requesttracker angefordert')
-    if not movement:
-        request.user.message_set.create(message="Es stehen keine Umlagerungen an.")
-    else:
-        movement_id = movement['oid']
-        # Umlagerbeleg drucken
-        document = myplfrontend.belege.get_movement_pdf(movement_id)
-        cs.printing.print_data(document, printer=printer.name)
-        request.user.message_set.create(message='Beleg %s wurde auf %s gedruckt' % (movement, printer.name))
-    return HttpResponseRedirect('../')

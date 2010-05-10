@@ -14,6 +14,7 @@ import itertools
 import datetime
 from huTools.calendar.workdays import add_workdays_german as add_workdays
 
+
 # Wie viele Werk-Tage vor dem ermittelten Liefertermin muss der Versandtermin liegen. Für Deutschland
 # gibt es eine individuelle Berechnung. Das ganze ist eh ein bisschen zu grob.
 LAND_VORLAUFTAGE = {'AT': 3, 'FR': 3, 'ES': 4, 'DE': 1, 'NL': 2, 'BE': 2, 'CH': 4}
@@ -28,18 +29,23 @@ def get_versandtermin(liefertermin, land):
     return versandtermin
 
 
-def find_softm_differences():
-    """Find articles which have different quantities in myPL as their SoftM counterparts."""
-    softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
-    kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in
-                        (myplfrontend.kernelapi.get_article(article) for article in myplfrontend.kernelapi.get_article_list()))
-    difkernel2softm = kernelbestand.difference(softmbestand)
-    difsoftm2kernel = softmbestand.difference(kernelbestand)
-    artnrs = set(artnr for (artnr, mng) in itertools.chain(difkernel2softm, difsoftm2kernel))
-    dictkernel2softm = dict(difkernel2softm)
-    dictsoftm2kernel = dict(difsoftm2kernel)
-    return [dict(artnr=artnr, softm_menge=dictsoftm2kernel.get(artnr, 0), kernel_menge=dictkernel2softm.get(artnr, 0))
-            for artnr in artnrs]
+def find_stock_differences():
+    """Finde Artikel für die sich die Mengen in myPL und SoftM unterscheiden"""
+    
+    mypl_bestand = []
+    for artnr in myplfrontend.kernelapi.get_article_list():
+        tmp = myplfrontend.kernelapi.get_article(article)
+        mypl_bestand.append((tmp['artnr'], tmp['full_quantity']))
+    
+    mypl_bestand = set(mypl_bestand)
+    softm_bestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
+    
+    mypl_diff = dict(mypl_bestand - softm_bestand)
+    softm_diff = dict(softm_bestand - mypl_bestand)
+    
+    return [
+                    {'artnr': artnr, 'softm': softm_bestand.get(artnr, 0), 'mypl': mypl_bestand.get(artnr, 0)}
+                for artnr in itertools.chain(mypl_diff.keys(), softm_diff.keys())]
 
 
 def format_locname(locname):

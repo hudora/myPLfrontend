@@ -1,5 +1,6 @@
 # setting the PATH seems only to work in GNUmake not in BSDmake
-PATH := ./pythonenv/bin:$(PATH)
+
+PATH := ./testenv/bin:$(PATH)
 S3BUCKET = s.hdimg.net
 
 default: dependencies check test
@@ -16,8 +17,8 @@ test:
 	python manage.py test --verbosity=1 myplfrontend
 
 dependencies:
-	virtualenv pythonenv
-	pip -q install -E pythonenv -r requirements.txt
+	virtualenv testenv
+	pip -q install -E testenv -r requirements.txt
 	# the following line is needed for Django applications
 	sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
 
@@ -40,7 +41,10 @@ runserver: dependencies
 	python manage.py runserver
 
 clean:
-	rm -Rf pythonenv build dist html test.db sloccount.sc pylint.out
+	rm -Rf testenv build dist html test.db sloccount.sc pylint.out
 	find . -name '*.pyc' -or -name '*.pyo' -delete
+
+cdn:
+	s3put -a $(AWS_ACCESS_KEY_ID) -s $(AWS_SECRET_ACCESS_KEY) -b $(S3BUCKET) -g public-read -p $(PWD)/media/ media
 
 .PHONY: test build clean install upload check statistics dependencies

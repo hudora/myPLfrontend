@@ -7,14 +7,20 @@ Created by Christoph Borgolte and Christian Klein on 2010-04-13.
 Copyright (c) 2010 HUDORA GmbH. All rights reserved.
 """
 
-
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render_to_response
 from django.template import RequestContext
+from django.views.decorators.http import require_POST
+
+import myplfrontend.belege
 from myplfrontend.kernelapi import Kerneladapter
+
 from cs.messaging import simple_message
 from cs.zwitscher import zwitscher
+
 from hudjango import PrinterChooser
-from django.http import HttpResponse, HttpResponseRedirect
+
+PRINTERS = ("DruckerAllman", "DruckerLerdorf", "DruckerDraper")
 
 
 # MOVE TO UTIL ODER WO AUCH IMMER...
@@ -88,7 +94,7 @@ def holen(request):
     """
 
     kerneladapter = Kerneladapter()
-    printer = PrinterChooser(request, ("DruckerAllman", "DruckerLerdorf", "DruckerDraper"))
+    printer = PrinterChooser(request, PRINTERS, "a4")
 
     if request.method == "POST":
         provisioningtype = request.POST.get('provisioningtype', '')
@@ -119,25 +125,28 @@ def holen(request):
         template = 'mypl/beleg_holen.html'
     
     ctx = {}
-    return render_to_response(template, printer.update_context(ctx),
-                              context_instance=RequestContext(request))
+    return printer.update_response(render_to_response(template, printer.update_context(ctx),
+                                                      context_instance=RequestContext(request)))
 
 
+@require_POST
 def create_movement(request):
     """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
-    return HttpResponse('Geht im Moment nicht.')
+    
+    return HttpResponse('Geht im Moment nicht.') # XXX
+    
     kerneladapter = Kerneladapter()
-    printer = PrinterChooser(request, ("DruckerAllman", "DruckerLerdorf", "DruckerDraper"))
-    movement = kerneladapter.get_next_movement({'user': request.user.username,
-              'reason': 'manuell durch %s aus Requesttracker angefordert' % request.user.username})
+    printer = PrinterChooser(request, PRINTERS, "a4")
+    
+    movement = kerneladapter.get_next_movement(user=request.user.username,
+          reason='manuell durch %s aus Requesttracker angefordert' % request.user.username)
     if not movement:
         request.user.message_set.create(message="Es stehen keine Umlagerungen an.")
     else:
-        # movement ist ein Dict
         movement_id = movement['oid']
         zwitscher("Movement %s wurde per Request Tracker angefordert" % movement_id, username='mypl')
         # Umlagerbeleg drucken
         pdf = myplfrontend.belege.get_movement_pdf(movement_id)
         cs.printing.print_data(pdf, printer=printer.name)
         request.user.message_set.create(message='Beleg %(oid)s wurde gedruckt' % movement)
-    return HttpResponseRedirect('../')
+    return printer.update_response(HttpResponseRedirect('../'))

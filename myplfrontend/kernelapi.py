@@ -68,11 +68,71 @@ def utc_to_local(timestamp):
 def e2string(data):
     """Turn an Erlang String into a Python string."""
     # if we got a list of numbers turn it into a string
-    if data and data[0] and isinstance(data[0], int):
-        return ''.join([chr(x) for x in data])
-    if data == []:
-        return ''
-    return data
+    try:
+        return ''.join(chr(x) for x in data)
+    except TypeError:
+        return data
+
+
+def attributelist2dict(proplist, fixnames=[]):
+    """Converts an Erlang Proplist to a Python dict.
+    
+    See http://www.erlang.org/doc/man/proplists.html for proplists.
+    Using JSON we have issues converting Erlang strings to Python strings.
+    This function tries to convert all keys to strings and all values where
+    the key is present in fixattnames.
+    """
+    attributes = {}
+    for element in proplist:
+        if len(element) == 1:
+            name = element[0]
+            value = True
+        else:
+            name, value = element
+        
+        if name in fixnames:
+            attributes[e2string(name)] = e2string(value)
+        else:
+            attributes[e2string(name)] = value
+    return attributes
+
+
+def attributelist2dict_str(proplist):
+    """Like attributelist2dict but tries to convert _all_ values to strings."""
+    
+    attributes = {}
+    for element in proplist:
+        if len(element) == 1:
+            name = element[0]
+            value = True
+        else:
+            name, value = element
+
+        if isinstance(value, list):
+            attributes[e2string(name)] = e2string(value)
+        else:
+            attributes[e2string(name)] = value
+    return attributes
+
+
+def cleanup_list(data):
+    """Cleanup retrieval- or movmentlists"""
+    lists = []
+    for data in data:
+        list_id, cid, destination, attributes, parts, positions = data
+        list_id = e2string(list_id)
+        cid = e2string(cid)
+        destination = e2string(destination)
+        poslist = []
+        for position in positions:
+            pos_id, nve, source, quantity, product, posattributes = position
+            pos_id = e2string(pos_id)
+            nve = e2string(nve)
+            source = e2string(source)
+            product = e2string(product)
+            poslist.append((pos_id, nve, source, quantity, product, attributelist2dict_str(posattributes)))
+        lists.append((list_id, cid, destination, parts, attributelist2dict_str(attributes), poslist))
+    return lists
 
 
 class Kerneladapter(object):
@@ -100,7 +160,7 @@ class Kerneladapter(object):
         else:
             raise RuntimeError("Can't get reply from kernel, Status: %s, Body: %s" % (response.status, content))
     
-    def _post(self, path, **kwargs):
+    def _post(self, path, data):
         """
         Funktion, um Daten per HTTP POST an den Kernel zu übertragen.
         
@@ -108,7 +168,7 @@ class Kerneladapter(object):
         Der Rückgabewert ist ein dict.
         """
         
-        encoded_data = json.dumps(kwargs, separators=(',', ':'))
+        encoded_data = json.dumps(data, separators=(',', ':'))
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'POST', body=encoded_data)
 
@@ -128,7 +188,9 @@ class Kerneladapter(object):
         conn = httplib2.Http()
         response, content = conn.request(self.kernel + '/%s' % path, 'DELETE', data)
         if response.status == 204:
-            return content
+            if content:
+                return content
+            return True
         elif response.status == 404:
             return None
         else:
@@ -301,61 +363,92 @@ class Kerneladapter(object):
         """
         return self._post("kommiauftrag", auftrag)
     
-    # TODO
-    def init_movement_to_good_location(self, params):
-        raise NotImplementedError('pleeze!')
-        # self._post('')...
+    def init_movement_to_good_location(self, mui):
+        """
+        Initiiert ein Movement einer MUI.
+        
+        Diese Funktion wird beispielsweise beim Einbuchen von Findlinen
+        von Platz FNDLNG aus verwendet.
+        """
+        return self._post('init_movement_to_good_location', mui)
     
     # TODO
     def store_at_location_multi(self, params):
         raise NotImplementedError('pleeze!')
         # self._post('')...
     
+    def get_picklist(self, **kwargs):
+        """
+        Picklists anfordern.
+        
+        Die Daten, die von Erlang JSON-kodiert verschickt werden, müssen
+        auf Pythonseite noch bereinigt werden.
+        """
+        if not kwargs:
+            raise ValueError('No arguments given')
+
+        picklist = self._post('pick', kwargs)
+        if picklist:
+            return cleanup_list(picklist)
+    
     # XXX: rename
     def get_next_job(self, probability=0.75):
         """
-        XXX
+        Fragt nächsten Job für einen Stapler an.
         
+        Der zurückgegebene Job kann entweder ein Retrieval oder ein Movement sein.
         probability gibt die Wahrscheinlichkeit an, mit der ein Retrieval erzeugt werden soll,
         1 - probability ist demnach die W'keit für die Erzeugung eines Movements.
         """
         
         if random.random() < probability:
-            return self.get_next_retrieval()
+            first, second = self.get_retrievallist, self.get_movementlist
         else:
-            return self.get_next_movement()
+            first, second = self.get_movementlist, self.get_retrievallist
+        job = first() or second()
+        return job        
     
-    # XXX: implement
-    def get_next_retrieval(self):
-        raise NotImplementedError('not implemented yet')
+    def get_retrievallist(self, **kwargs):
+        """Get retrievallist"""
+        retrievallists = self._post('retrieval', kwargs)
+        if retrievallists:
+            return cleanup_list(retrievallists)
     
-    # XXX: rename
-    def get_next_movement(self, **kwargs):
-        """Get movement (or retrieval)"""
-        movement = self._post('movement', **kwargs)
-        return movement
-    
-    def commit_movement(self, movement_id):
-        """Movement zurückmelden"""
-        return self._post('movement/%s' % movement_id)
+    def get_movementlist(self, **kwargs):
+        """Get movementlist"""
+        return self._post('movement', kwargs)
 
-    #### BEGIN OF DRAFT CODE ####
     def commit_provisioning(self, belegnr):
+        """Beleg zurückmelden"""
+        raise NotImplementedError("Sorry.")
         if belegnr.startswith('r'):
             self.commit_retrieval(belegnr)
         elif belegnr.startswith('p'):
             self.commit_picklist(belegnr)
         else:
             raise RuntimeError("Unknown provisioning type: %s" % belegnr)
+        
+    def commit_movement(self, movement_id):
+        """Movement zurückmelden"""
+        # XXX: orderlines?
+        return self._post('movement/%s' % movement_id, ['XXX'])
+
+    def commit_retrieval(self, retrieval_id, orderlines, **kwargs):
+        """
+        Retrieval zurückmelden
+        Es werden die orderlines (Tupel aus Artikelnr und Menge) sowie
+        weitere Attribute (z.B. "picker") übergeben.
+        """
+        return self._post('retrieval/%s' % retrieval_id, [orderlines, kwargs])
     
-    def commit_retrieval(self, retrieval_id):
-        """Retrieval zurückmelden"""
-        raise NotImplementedError("Not implemented yet")
-    
-    def commit_picklist(self, picklist_id):
-        """Picklist zurückmelden"""
-        return self._post('pick/%s' % picklist_id)
-    ##### END #####
+    def commit_picklist(self, picklist_id, orderlines, **kwargs):
+        """
+        Picklist zurückmelden
+        
+        Es werden die orderlines (Tupel aus Artikelnr und Menge) sowie
+        weitere Attribute (z.B. "picker") übergeben.
+        """
+        return self._post('pick/%s' % picklist_id, [orderlines, kwargs])
     
     def set_kommiauftrag_priority(self, kommiauftragnr, begruendung, priority):
         """Changes the priority of a Kommiauftrag."""

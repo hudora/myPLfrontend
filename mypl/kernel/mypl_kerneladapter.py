@@ -7,17 +7,8 @@ Created by Maximillian Dornseif on 2007-10-12.
 Copyright (c) 2007 HUDORA GmbH. All rights reserved.
 """
 
-# TODO:
-# Relation zwischen Unit und Pick?
-
 import socket, simplejson, datetime, time, types, sys
 
-try:
-    import sqladapter
-except ImportError:
-    USE_SQL_BACKEND = False
-else:
-    USE_SQL_BACKEND = True
 
 DEBUG = True
 
@@ -322,12 +313,6 @@ class Kerneladapter:
         data['picks'] = [e2string(x) for x in data['picks']]
         data['created_at'] = e2datetime(data['created_at'])
         
-        # TODO: This still needs to be implemented
-        # if kernelE did not return a result, query the database
-        #if USE_SQL_BACKEND and not data:
-        #   resultset = Unit.selectBy(mui=name)
-        #   data = map(Movement.to_dict, resultset)
-        
         return data
     
     @nice_exception
@@ -352,12 +337,6 @@ class Kerneladapter:
         data = attributelist2dict_str(data)
         data['created_at'] = e2datetime(data['created_at'])
         data['attributes'] = attributelist2dict_str(data.get('attributes', []))
-        
-        # TODO: This still needs to be implemented
-        # if kernelE did not return a result, query the database
-        #if USE_SQL_BACKEND and not data:
-        #   resultset = Movement.selectBy(id=name)
-        #   data = map(Movement.to_dict, resultset)
         
         return data
         
@@ -393,12 +372,6 @@ class Kerneladapter:
         data = attributelist2dict_str(data)
         data['created_at'] = e2datetime(data['created_at'])
         data['attributes'] = attributelist2dict_str(data.get('attributes', []))
-        
-        # TODOL: This still needs to be implemented
-        # if kernelE did not return a result, query the database
-        #if USE_SQL_BACKEND and not data:
-        #   resultset = Pick.selectBy(id=name)
-        #   data = map(Movement.to_dict, resultset)
         
         return data
         

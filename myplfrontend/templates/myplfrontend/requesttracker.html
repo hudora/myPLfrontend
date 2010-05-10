@@ -10,16 +10,17 @@
         <tbody>
         {% for info in tracking_infos %}
         <tr class="{% cycle odd,even %}">
-            <td>{{info.menge}}</td>
-            <td>{{info.artnr|link_product}}</td>
-            <td>{{info.lastseen|fix_timestamp}}</td>
+            <td>{{ info.menge }}</td>
+            <td>{{ info.artnr|link_product }}</td>
+            <td>{{ info.lastseen|fix_timestamp }}</td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
 
-    <form action="../create_movement/" method="POST">
-        <button type="submit" value="movement" name="provisioningtype"><strong>automatische Umlagerung erzeugen</strong></button>
+    <form action="{% url mypl-create_movement %}" method="POST">
+        <input type="hidden" name="provisioningtype" value="movement" />
+        <button type="submit"><strong>automatische Umlagerung erzeugen</strong></button>
     </form>
 {% else %}
     <b>Es liegen momenten keine Umlagerungsanforderungen vor.</b>
