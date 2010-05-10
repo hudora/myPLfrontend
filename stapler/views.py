@@ -76,21 +76,35 @@ def fetch_movement(request):
         try:
             movement = Kerneladapter().get_next_movement(attr='%s via myPL Stapler' % request.user.username)
             #movement = _get_dummy_movement()
-            zwitscher("Staplerauftrag %s wurde geladen" % movement['oid'], username="stapler")
+            if _is_empty_movement(movement):
+                zwitscher("kein Staplerauftrag verfuegbar", username="stapler")
+            else:
+                zwitscher("Staplerauftrag %s wurde geladen" % movement['oid'], username="stapler")
         except Exception:
             return HttpRespone('{"status":"exception"}', mimetype='application/json')
 
         # haben wir ein Movement vom Kernel bekommen? Wenn ja legen wir es
         # als Job in der lokalen DB ab und erzeugen die Ausgabe fuer den Client,
         # ansonsten gibt's eine passende Fehlermeldung fuer den Kernel
-        if movement:
+        if _is_empty_movement(movement):
+            json = '{"status":"not_found"}'
+        else:
             job = make_job(request.user, movement)
             json = job.serialized_movement
-        else:
-            json = '{"status":"not_found"}'
 
     # und jetzt noch die fertige Msg zum Client liefern, fettich.
     return HttpResponse(json, mimetype='application/json')
+
+
+def _is_empty_movement(movement):
+    """ ueberprueft, ob eine vollstaendige Umlagerung geladen werden konnte
+        oder ob keine Umlagerung vorliegt """
+    if not movement or movement == []:
+        return True
+    if not movement.get('from_location'):
+        return True
+    return False
+
 
 @require_POST
 @login_required
@@ -99,12 +113,12 @@ def commit_or_cancel_movement(request, what):
     job = get_object_or_404(Staplerjob, movement_id=oid, user=request.user, status='open')
     if what == 'cancel':
         #Kerneladapter().movement_stornieren(oid, request.user.username, 'Storno via myPL Stapler')
-        zwitscher("Staplerauftrag %s wurde storniert" % oid, username="stapler")
+        zwitscher("Staplerauftrag %s wurde storniert (nicht im KernelE!!)" % oid, username="stapler")
         job.status = 'canceled'
     else:
         # Der neue (HTTP-basierte) Kerneladapter unterstuetzt noch kein Rueckmelden von Movements:
-        ##Kerneladapter().commit_movement(oid)
-        #OldKerneladapter().commit_movement(oid)
+        #Kerneladapter().commit_movement(oid)
+        OldKerneladapter().commit_movement(oid)
         zwitscher("Staplerauftrag %s wurde rueckgemeldet" % oid, username="stapler")
         job.status = 'closed'
     job.closed_at = datetime.now()
