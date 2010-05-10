@@ -14,6 +14,7 @@ jQT=$.jQTouch({
  */
 $(document).ready(function() {
   $("a#doLogin").click(login);
+  $("form.login").submit(login);
   $("a#doLogout").click(logout);
   $("a#fetchMovement").click(fetchMovement);
   $("a#cancelMovement").click(cancelMovement);
@@ -79,6 +80,7 @@ function login() {
     type: 'post',
     error: loginCallback,
     success: loginCallback});
+  return false;
 }
 
 /**
