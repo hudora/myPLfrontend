@@ -97,15 +97,15 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
     # Datensatz an SoftM zurückgemeldet
 
 
-def decodiere_message(msg):
+def decodiere_message(msg, spezial=False):
     """Dekodiert die JSON Message und reichert sie mit den Nötigen weiterführenden Daten an."""
     global zwitscher_user
 
     hugogramm = json.loads(msg.body)
 
     # trackingnummern übernehmen, für huLOG messages
-    trackingnrn = [{'trackingnr': pos['nve']} for pos in hugogramm['positionen']]
-    hugogramm['trackingnr'] = trackingnrn
+    if not spezial:
+        hugogramm['trackingnr'] = [{'trackingnr': pos['nve']} for pos in hugogramm['positionen']]
 
     hugogramm['kommiauftragnr'] = hugogramm.get('kommiauftragnr', hugogramm.get('kommiauftragsnr'))
     kommibeleg = husoftm.lieferscheine.Kommibeleg(hugogramm['kommiauftragnr'])
@@ -181,7 +181,7 @@ def lieferscheindruck(kommibeleg, hugogramm=None):
 def benachrichtigen(kommibeleg, hugogramm):
     """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
-    cs.zwitschr.zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
+    cs.zwitscher.zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
                                         hugogramm['audit_trail'],  kommibeleg.name1), username=zwitscher_user)
 
 
@@ -203,7 +203,7 @@ def create_hulog_msg(kommibeleg, hugogramm):
 
 def handle_message_spezial(message):
     """Callback function used by channel.basic_consume for 'nullen'."""
-    kommibeleg, hugogramm = decodiere_message(message)
+    kommibeleg, hugogramm = decodiere_message(message, spezial=True)
     log_message('nullen', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='nullen')
     channel.basic_ack(message.delivery_tag)
