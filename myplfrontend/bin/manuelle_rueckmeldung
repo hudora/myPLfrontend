@@ -19,10 +19,10 @@ def parse_commandline():
     parser.description = __doc__
 
     parser.set_usage('usage: %prog [options]. Try %prog --help for details.')
-    parser.add_option('--nullen', default=False, help=u'Stornierne des Auftrags')
+    parser.add_option('--nullen', default=False, action='store_true', help=u'Stornierne des Auftrags')
     parser.add_option('--grund', help=u'Grund für das manuelle Rückmelden')
     parser.add_option('--user', help=u'Der verantwortliche Nutzer')
-    parser.add_option('-o', '--out', dest='zielqueue', default='cs-wms.test.rueckmeldung#38#spezial', # nullen
+    parser.add_option('-o', '--out', dest='zielqueue', help='Bspw. zum Nullen: cs-wms.test.rueckmeldung#38#spezial', # nullen
                       help=u'Zielqueue [default: %default]')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enables debugging mode')
@@ -34,12 +34,15 @@ def parse_commandline():
         parser.error("'--grund' nicht angegeben")
     if not opts.user:
         parser.error("'--user' nicht angegeben")
+    if not opts.zielqueue:
+        parser.error("'--out' nicht angegeben")
     opts.audit_trail = u"%s: %s" % (opts.user, opts.grund)
     return opts, args
 
 
 def main(options, args):
     """This implements the actual programm functionality."""
+
     for kommiauftragnr in args:
         myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr,
                                                      zielqueue=options.zielqueue,
