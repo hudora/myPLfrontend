@@ -18,7 +18,8 @@ dependencies:
 	virtualenv pythonenv
 	pip -q install -E pythonenv -r requirements.txt
 	# the following line is needed for Django applications
-	sh -c 'echo p | svn co https://cybernetics.hudora.biz/intern/svn/code/projects/html/trunk/templates generic_templates'
+	git clone git@github.com:hudora/html.git generic_templates
+	
 
 statistics:
 	sloccount --wide --details myplfrontend > sloccount.sc
