@@ -206,7 +206,7 @@ def lagerplatz_detail(request, location):
     
     kerneladapter = Kerneladapter()
     platzinfo = kerneladapter.get_location(location)
-    units = [kerneladapter.get_unit(mui)) for mui in platzinfo['allocated_by']]
+    units = [kerneladapter.get_unit(mui) for mui in platzinfo['allocated_by']]
     
     # TODO: alle movements und korrekturbuchungen auf diesem Platz zeigen
     # Und zwar wie?!?
