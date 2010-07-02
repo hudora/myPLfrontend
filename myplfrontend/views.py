@@ -272,7 +272,7 @@ def bewegungen(request):
     
     kerneladapter = Kerneladapter()
     movements = [kerneladapter.get_movement(movement_id) for movement_id in sorted(kerneladapter.get_movements_list())]
-    picks = [kerneladapter,get_pick(pick_id) for pick_id in sorted(kerneladapter.get_picks_list())]
+    picks = [kerneladapter.get_pick(pick_id) for pick_id in sorted(kerneladapter.get_picks_list())]
     return render_to_response('myplfrontend/movement_list.html', {'movements': movements, 'picks': picks},
                               context_instance=RequestContext(request))
 
