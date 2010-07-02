@@ -252,7 +252,7 @@ def article_detail(request, artnr):
                               {'title': 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr),
                                'article_info': article_info,
                                'bestand100': husoftm.bestaende.bestand(artnr=artnr, lager=100),
-                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']},
+                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']]},
                               context_instance=RequestContext(request))
 
 
