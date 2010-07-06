@@ -99,9 +99,9 @@ DATABASE_USER = 'hudora'
 
 DATABASE_ENGINE = 'sqlite3'           # 'postgresql_psycopg2', 'mysql', 'sqlite3'
 DATABASE_HOST = ''
-DATABASE_NAME = ''
+DATABASE_NAME = 'testdb'
 DATABASE_PASSWORD = ''
-DATABASE_USER = 'testdb'
+DATABASE_USER = ''
 
 SERVER_EMAIL = 'server+django@cybernetics.hudora.biz'
 EMAIL_HOST = 'mail.hudora.biz'
