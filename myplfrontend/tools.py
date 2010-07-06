@@ -9,15 +9,16 @@ Copyright (c) 2008 HUDORA. All rights reserved.
 
 import unittest
 import husoftm.bestaende
-import myplfrontend.kernelapi
+from myplfrontend.kernelapi import Kerneladapter
 import itertools
 
 
 def find_softm_differences():
     """Find articles which have different quantities in myPL as their SoftM counterparts."""
+    kerneladapter = Kerneladapter()
     softmbestand = set(husoftm.bestaende.buchbestaende(lager=100).items())
     kernelbestand = set((artdict['artnr'], artdict['full_quantity']) for artdict in
-                        (myplfrontend.kernelapi.get_article(article) for article in myplfrontend.kernelapi.get_article_list()))
+                        (kerneladapter.get_article(article) for article in kerneladapter.get_article_list()))
     difkernel2softm = kernelbestand.difference(softmbestand)
     difsoftm2kernel = softmbestand.difference(kernelbestand)
     artnrs = set(artnr for (artnr, mng) in itertools.chain(difkernel2softm, difsoftm2kernel))

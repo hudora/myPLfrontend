@@ -160,7 +160,7 @@ class Kerneladapter(object):
     def get_article_list(self):
         """Gibt eine Liste aller Artikelnummer im Kernel zurück.
 
-        >>> myplfrontend.kernelapi.get_article_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_article_list()
         ['01020', '01023', '10008', ..., 'WK84020']
         """
         return self._get('product')
@@ -168,7 +168,7 @@ class Kerneladapter(object):
     def get_article(self, artnr):
         """Liefert informationen zu einem Artikel im Kernel.
 
-        >>> myplfrontend.kernelapi.get_article('01020'))
+        >>> myplfrontend.kernelapi.Kerneladapter().get_article('01020'))
         {'artnr': '01020',
          'muis': ['340059981001348267', '340059981001351939', '340059981001350925',
                   '340059981002392177', '340059981002392184', '340059981001359928'],
@@ -183,7 +183,7 @@ class Kerneladapter(object):
         """
         Liefert eine Liste aller nicht erledigten Kommiaufträge.
 
-        >>> myplfrontend.kernelapi.get_kommiauftrag_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommiauftrag_list()
         ['3099279',
          '3099292',
          '3099302',
@@ -196,7 +196,7 @@ class Kerneladapter(object):
     def get_movements_list(self):
         """Liefert eine Liste aller nicht erledigten Movements.
 
-        >>> myplfrontend.kernelapi.get_movements_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_movements_list()
         ['mb08546054', 'mr08548916', 'mr08548928']
 
         """
@@ -205,7 +205,7 @@ class Kerneladapter(object):
     def get_picks_list(self):
         """Liefert eine Liste aller nicht erledigten Picks.
 
-        >>> myplfrontend.kernelapi.get_picks_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_picks_list()
         ['P08548169', 'P08548153']
 
         """
@@ -214,7 +214,7 @@ class Kerneladapter(object):
     def get_kommischein_list(self):
         """Liefert eine Liste aller nicht erledigten Kommischeine.
 
-        >>> myplfrontend.kernelapi.get_kommischein_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommischein_list()
         ['r08549072']
 
         """
@@ -223,7 +223,7 @@ class Kerneladapter(object):
     def get_units_list(self):
         """Liefert eine Liste aller im Lager befindlichen Units.
 
-        >>> myplfrontend.kernelapi.get_kommiauftrag_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommiauftrag_list()
         ['3099279',
          '3099292',
          '3099302',
@@ -239,7 +239,7 @@ class Kerneladapter(object):
     def get_location_list(self):
         """Returns the full list of locations in the warehouse.
 
-        >>> myplfrontend.kernelapi.get_location_list()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_location_list()
         ['011301', '011302', '011303', '011401', '011402', '011403', '011501', '011502', '011503', ...]
 
         """
@@ -255,7 +255,7 @@ class Kerneladapter(object):
     def get_statistics(self):
         """Return statistics about the kernel.
 
-        >>> myplfrontend.kernelapi.get_statistics()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_statistics()
         {'empty_pickable_locations': 46,
          'multi_floorunits': 144,
          'oldest_movement': '2009-11-09T06:20:58.173399Z',
@@ -276,7 +276,7 @@ class Kerneladapter(object):
     def get_location(self, location):
         """Return detailed data for location from kernel.
         
-        >>> myplfrontend.kernelapi.get_location(location)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_location(location)
         {'allocated_by': ['340059981002483097'],
          'floorlevel': 'true',
          'height': 2100,
@@ -315,7 +315,7 @@ class Kerneladapter(object):
         werden muss - wird der Statuscode None zurückgegeben. Sollte das Lager weniger Bestand als gefordert
         haben, wird ein RuntimeError (Statuscode 403) zurückgegeben.
 
-        >>> myplfrontend.kernelapi.find_provisioning_candidates(1, 10147)
+        >>> myplfrontend.kernelapi.Kerneladapter().find_provisioning_candidates(1, 10147)
         {"retrievals":[],"picks":[{"menge":1,"mui":"340059981002563591"}]}
 
         """
@@ -338,7 +338,7 @@ class Kerneladapter(object):
     def get_article_audit(self, artnr):
         """Get audit information for an article.
 
-        >>> myplfrontend.kernelapi.get_article_audit(artnr)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_article_audit(artnr)
         [{'_id': '01020-a1252308278.201882',
           '_rev': '2-e50b5cbf73d4440a26b84e105ea86972',
           'created_at': datetime.datetime(2009, 9, 7, 9, 24, 38),
@@ -377,8 +377,8 @@ class Kerneladapter(object):
 
         Information is taken from couchdb archive, if nothing found in kernel
 
-        >>> import myplfrontend.kernelapi
-        >>> myplfrontend.kernelapi.get_unit_info(340059981002564246)
+        >>> import myplfrontend.kernelapi.Kerneladapter()
+        >>> myplfrontend.kernelapi.Kerneladapter().get_unit_info(340059981002564246)
         {'artnr': '71418',
          'created_at': '2009-10-23T05:40:38.221078Z',
          'height': 1650,
@@ -410,7 +410,7 @@ class Kerneladapter(object):
         Die Informationen werden entweder aus dem Kernel, oder aus dem Archiv im CouchDB genommen.
 
         from archive:
-        >>> myplfrontend.kernelapi.get_kommischein('p00149579')
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommischein('p00149579')
         {'_id': 'p00149579-R1232271323.735974p00149579',
          '_rev': '2-7e378c9a311abc784e356c42eee71da7',
          'archived_at': datetime.datetime(2009, 1, 18, 10, 35, 23),
@@ -431,7 +431,7 @@ class Kerneladapter(object):
          'type': 'picklist'}
 
         from kernelE:
-        >>> myplfrontend.kernelapi.get_kommischein(kommischeinnr)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommischein(kommischeinnr)
         {'anbruch': True,
          'created_at': '2009-11-10T09:26:09.000000Z',
          'destination': 'AUSLAG',
@@ -465,7 +465,7 @@ class Kerneladapter(object):
     def get_movement(self, movementid):
         """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Movement.
 
-        >>> myplfrontend.kernelapi.get_movement(movementid)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_movement(movementid)
         {'archived': False,
          'artnr': '84039',
          'created_at': datetime.datetime(2009, 11, 9, 7, 20, 58),
@@ -519,7 +519,7 @@ class Kerneladapter(object):
         """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Pick.
 
         from kernelE:
-        >>> myplfrontend.kernelapi.get_pick(pickid)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_pick(pickid)
         {'archived': False,
          'artnr': '57104',
          'created_at': datetime.datetime(2009, 11, 9, 10, 39, 16),
@@ -534,7 +534,7 @@ class Kerneladapter(object):
          'status': 'open'}
 
         from archive:
-        >>> myplfrontend.kernelapi.get_pick(pickid)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_pick(pickid)
         {'_id': 'P00149533',
          '_rev': '3-9c54fef0ab271bab56beecb87d37092b',
          'archived': True,
@@ -596,7 +596,7 @@ class Kerneladapter(object):
         """Liefert Informationen zu einem einzelnen - möglicherweise auch erledigten - Kommiauftrag.
 
         from kernelE:
-        >>> myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommiauftrag(kommiauftragnr)
         {'anbruch': False,
          'art': 'A',
          'auftragsnr': '1093439',
@@ -632,7 +632,7 @@ class Kerneladapter(object):
          'volumen': 10.331}
 
         from archive
-        >>> myplfrontend.kernelapi.get_kommiauftrag(kommiauftragnr)
+        >>> myplfrontend.kernelapi.Kerneladapter().get_kommiauftrag(kommiauftragnr)
         {'_id': '930613',
          '_rev': '3-ec028554a5b088a6962df5527fb8a618',
          'archived': True,
