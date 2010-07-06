@@ -378,7 +378,7 @@ class Kerneladapter(object):
         Information is taken from couchdb archive, if nothing found in kernel
 
         >>> import myplfrontend.kernelapi
-        >>> myplfrontend.kernelapi.get_unit(340059981002564246)
+        >>> myplfrontend.kernelapi.get_unit_info(340059981002564246)
         {'artnr': '71418',
          'created_at': '2009-10-23T05:40:38.221078Z',
          'height': 1650,

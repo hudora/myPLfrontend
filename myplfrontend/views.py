@@ -206,7 +206,7 @@ def lagerplatz_detail(request, location):
     
     kerneladapter = Kerneladapter()
     platzinfo = kerneladapter.get_location(location)
-    units = [kerneladapter.get_unit(mui) for mui in platzinfo['allocated_by']]
+    units = [kerneladapter.get_unit_info(mui) for mui in platzinfo['allocated_by']]
     
     # TODO: alle movements und korrekturbuchungen auf diesem Platz zeigen
     # Und zwar wie?!?
@@ -252,7 +252,7 @@ def article_detail(request, artnr):
                               {'title': 'Artikelinformationen: %s (%s)' % (cs.masterdata.article.name(artnr), artnr),
                                'article_info': article_info,
                                'bestand100': husoftm.bestaende.bestand(artnr=artnr, lager=100),
-                               'units': [kerneladapter.get_unit(nve) for nve in article_info['muis']]},
+                               'units': [kerneladapter.get_unit_info(nve) for nve in article_info['muis']]},
                               context_instance=RequestContext(request))
 
 
@@ -323,7 +323,7 @@ def unit_show(request, mui):
     """View für Detailansicht einer MUI"""
     
     kerneladapter = Kerneladapter()
-    unit = kerneladapter.get_unit(mui)
+    unit = kerneladapter.get_unit_info(mui)
     
     if request.method == "POST":
         form = PalletHeightForm(request.POST)

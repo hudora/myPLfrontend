@@ -37,7 +37,7 @@ if kommischeinnr:
 mui = myplfrontend.kernelapi.get_units_list()[0]
 myplfrontend.kernelapi.get_units_list()
 if mui:
-    myplfrontend.kernelapi.get_unit(mui)
+    myplfrontend.kernelapi.get_unit_info(mui)
 
 location = myplfrontend.kernelapi.get_location_list()[0]
 myplfrontend.kernelapi.get_location_list()

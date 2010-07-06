@@ -164,7 +164,7 @@ class _MovementGenerator(JasperGenerator):
         for fieldname in ['artnr', 'name']:
             _add_subelemententry(xml_product, fieldname, product)
 
-        unit = myplfrontend.kernelapi.get_unit(movement['mui'])
+        unit = myplfrontend.kernelapi.get_unit_info(movement['mui'])
         xml_unit = ET.SubElement(xml_movement, 'unit')
         for fieldname in ['height', 'created_at', 'mui', 'menge']:
             _add_subelemententry(xml_unit, fieldname, unit)
