@@ -12,7 +12,7 @@ urlpatterns += patterns('myplfrontend.views',
     (r'^unit/$', 'unit_list'),
     (r'^unit/(?P<mui>.+)/$', 'unit_show'),
     (r'^bewegungen/$', 'bewegungen'),
-    (r'^movements/(?P<mid>.*)/storno/$', 'movement_stornieren'),
+    #(r'^movements/(?P<mid>.*)/storno/$', 'movement_stornieren'), # View existiert nicht
     (r'^movements/(?P<mid>.*)/$', 'movement_show'),
     (r'^picks/(?P<pickid>.*)/$', 'pick_show'),
     (r'^produkte/$', 'show_articles', {'want_softm': False}),

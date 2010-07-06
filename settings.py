@@ -15,7 +15,7 @@ import django
 DJANGO_ROOT = os.path.dirname(os.path.realpath(django.__file__))
 SITE_ROOT = os.path.dirname(os.path.realpath(__file__))
 
-DEBUG = False
+DEBUG = True
 MEDIA_URL = 'http://s.hdimg.net/myplfrontend/'
 SESSION_COOKIE_DOMAIN = 'hudora.biz' # or hudora.de
 ROOT_URLCONF = 'urls'

@@ -9,8 +9,8 @@ admin.autodiscover()
 
 urlpatterns = patterns('',
 # admin stuff
-(r'^admin/doc/', include('django.contrib.admindocs.urls')),
-(r'^admin/(.*)', 'admin.site.root'),
+#(r'^admin/doc/', include('django.contrib.admindocs.urls')),
+#(r'^admin/(.*)', 'admin.site.root'),
 (r'^accounts/login/$', 'django.contrib.auth.views.login'),
 (r'^accounts/logout/$', 'django.contrib.auth.views.logout'),
 (r'^accounts/password_change/$', 'django.contrib.auth.views.password_change'),
