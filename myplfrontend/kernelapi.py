@@ -359,7 +359,7 @@ class Kerneladapter(object):
     
     def get_unit_audit(self, mui):
         """Hole Audit-informationen zu einer Palette aus der CouchDB """
-        self._couch('mypl_audit', 'selection/unitaudit', key=mui, limit=100)
+        rows = self._couch('mypl_audit', 'selection/unitaudit', key=mui, limit=100)
         return [fix_timestamps(dict(entry.doc)) for entry in rows]
     
     def get_audit(self, view, key):
