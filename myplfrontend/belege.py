@@ -13,7 +13,7 @@ from pyjasper.client import JasperGenerator
 import cs.masterdata.article
 import cs.zwitscher
 import datetime
-import myplfrontend.kernelapi
+from myplfrontend.kernelapi import Kerneladapter
 import os
 import xml.etree.ElementTree as ET
 
@@ -42,7 +42,7 @@ class _ProvisioningGenerator(JasperGenerator):
     def provisioning2xml(self, provisioning_id):
         """Generic functionality to create a XML file from kernelE's kommischein information."""
 
-        provisioning_dict = myplfrontend.kernelapi.get_kommischein(provisioning_id)
+        provisioning_dict = Kerneladapter().get_kommischein(provisioning_id)
 
         xmlroot = self.root
         xml_provisioning = ET.SubElement(xmlroot, 'provisioning')
@@ -58,7 +58,7 @@ class _ProvisioningGenerator(JasperGenerator):
 
         # data from kommiauftrag
         fields = ['liefertermin', 'kundennr', 'auftragsnummer']
-        kommiauftrag = myplfrontend.kernelapi.get_kommiauftrag(provisioning_dict["provpipeline_id"])
+        kommiauftrag = Kerneladapter().get_kommiauftrag(provisioning_dict["provpipeline_id"])
         attr_dict = kommiauftrag.get('attributes', kommiauftrag)
         for fieldname in fields:
             _add_subelemententry(xml_provisioning, fieldname, attr_dict)
@@ -74,9 +74,9 @@ class _ProvisioningGenerator(JasperGenerator):
         for provisioningid in provisioning_dict.get("provisioning_ids",
                                                     provisioning_dict.get("provisionings", [])):
             if provisioningid.startswith('P'):
-                provisioning = myplfrontend.kernelapi.get_pick(provisioningid)
+                provisioning = Kerneladapter().get_pick(provisioningid)
             else:
-                provisioning = myplfrontend.kernelapi.get_movement(provisioningid)
+                provisioning = Kerneladapter().get_movement(provisioningid)
             provisionings.append(provisioning)
 
         # process provisionings sorted by from_location
@@ -153,7 +153,7 @@ class _MovementGenerator(JasperGenerator):
         ET.SubElement(self.root, 'generated_at').text = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         xml_movement = ET.SubElement(self.root, 'movement')
-        movement = myplfrontend.kernelapi.get_movement(movement_id)
+        movement = Kerneladapter().get_movement(movement_id)
         for fieldname in ["from_location", "to_location", "oid", "created_at"]:
             _add_subelemententry(xml_movement, fieldname, movement)
 
@@ -164,7 +164,7 @@ class _MovementGenerator(JasperGenerator):
         for fieldname in ['artnr', 'name']:
             _add_subelemententry(xml_product, fieldname, product)
 
-        unit = myplfrontend.kernelapi.get_unit_info(movement['mui'])
+        unit = Kerneladapter().get_unit_info(movement['mui'])
         xml_unit = ET.SubElement(xml_movement, 'unit')
         for fieldname in ['height', 'created_at', 'mui', 'menge']:
             _add_subelemententry(xml_unit, fieldname, unit)
