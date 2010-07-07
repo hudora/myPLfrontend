@@ -86,7 +86,7 @@ LDAP_SERVER_NAME = 'mail.hudora.biz'
 SECRET_KEY = 'sua1+khy2x-dojd_+r2j^7$asdfasQ@#$)!v94tpxe-g&_n6xxxv0!f+y'
 
 CACHE_BACKEND = 'memcached://balancer.local.hudora.biz:11211/'
-os.environ['PYJASPER_SERVLET_URL'] = 'http://jasper.local.hudora.biz:8080/pyJasper/jasper.py'
+os.environ['PYJASPER_SERVLET_URL'] = 'http://www-alt.hudora.de:8080/pyJasper/jasper.py'
 
 COUCHDB_STORAGE_OPTIONS = {'server': "http://couchdb1.local.hudora.biz:5984"}
 
