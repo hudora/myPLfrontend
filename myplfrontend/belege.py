@@ -11,16 +11,12 @@ from myplfrontend.tools import format_locname, sort_plaetze
 from pyjasper.client import JasperGenerator
 
 import cs.masterdata.article
+import cs.masterdata.vorprodukte
 import cs.zwitscher
 import datetime
 from myplfrontend.kernelapi import Kerneladapter
 import os
 import xml.etree.ElementTree as ET
-
-import random
-
-# debug
-cs.masterdata.article.arbeitsanweisung = lambda x: random.choice(['mach schnell!', u'Bälle aufpumpen', 'zu zweit in Kartons bündeln'])
 
 
 def _add_subelemententry(root, field, obj_dict):
@@ -89,8 +85,10 @@ class _ProvisioningGenerator(JasperGenerator):
                 provisioning = Kerneladapter().get_movement(provisioningid)
             provisionings.append(provisioning)
 
+
         # process provisionings sorted by from_location
         for provisioning in sort_plaetze(provisionings, key='from_location'):
+
             xml_pos = ET.SubElement(xml_provisioning, 'provisioningposition')
 
             # FIXME was ist provisioning_type? -> pick/retrieval? wo wird das angedruckt?
@@ -121,7 +119,7 @@ class _ProvisioningGenerator(JasperGenerator):
                 _add_subelemententry(xml_product, fieldname, product)
 
             if self.produktionsauftrag:
-                ET.SubElement(xml_product, 'arbeitsanweisung').text = cs.masterdata.article.arbeitsanweisung(artnr)
+                ET.SubElement(xml_product, 'produktionshinweis').text = cs.masterdata.vorprodukte.produktionshinweis(artnr)
 
             products_per_export_package = product.get('products_per_export_package')
             if products_per_export_package:
@@ -187,11 +185,8 @@ class _MovementGenerator(JasperGenerator):
 
 def get_provisioning_pdf(provisioning_id):
     """Public interface to get a kommischein pdf."""
-    ka = Kerneladapter()
-    auftragsart = ka.get_kommiauftrag(ka.get_kommischein(provisioning_id)["provpipeline_id"])['art']
-    auftragsart = 'KO' # debug
-    produktionsauftrag = (auftragsart == 'KO')
-    generator = _ProvisioningGenerator(produktionsauftrag=produktionsauftrag)
+    auftragsart = Kerneladapter().get_kommiauftrag(ka.get_kommischein(provisioning_id)["provpipeline_id"])['art']
+    generator = _ProvisioningGenerator(produktionsauftrag=(auftragsart == 'KO'))
     return generator.generate(provisioning_id)
 
 
