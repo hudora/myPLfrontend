@@ -11,8 +11,6 @@ import unittest
 from django.test.client import Client
 from django.test import TestCase
 
-import myplfrontend.views
-
 
 class SimpleTests(TestCase):
     """Test basic functionality"""

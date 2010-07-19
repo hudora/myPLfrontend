@@ -478,7 +478,7 @@ def create_movement(request):
     """Erzeugt eine Umlagerung - soweit der Kernel meint, es würde eine anstehen"""
 
     # TODO: make use of PrinterChooser here
-    movement = kerneladapter.create_automatic_movement({'user': request.user.username,
+    movement = Kerneladapter().create_automatic_movement({'user': request.user.username,
               'reason': 'manuell durch %s aus Requesttracker angefordert' % request.user.username})
     if not movement:
         request.user.message_set.create(message="Es stehen keine Umlagerungen an.")

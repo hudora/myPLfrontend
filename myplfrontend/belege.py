@@ -185,7 +185,8 @@ class _MovementGenerator(JasperGenerator):
 
 def get_provisioning_pdf(provisioning_id):
     """Public interface to get a kommischein pdf."""
-    auftragsart = Kerneladapter().get_kommiauftrag(ka.get_kommischein(provisioning_id)["provpipeline_id"])['art']
+    ka = Kerneladapter()
+    auftragsart = ka.get_kommiauftrag(ka.get_kommischein(provisioning_id)["provpipeline_id"])['art']
     generator = _ProvisioningGenerator(produktionsauftrag=(auftragsart == 'KO'))
     return generator.generate(provisioning_id)
 
