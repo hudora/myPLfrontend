@@ -20,7 +20,6 @@ import datetime
 import husoftm.kunden
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
-import husoftm.tools
 import husoftm.versandart
 import huTools.NetStringIO as NetStringIO
 import logging
@@ -104,7 +103,7 @@ def transfer_kommis(lager, options):
                         # addressprotocol
                         name1=softmschein.name1,
                         strasse=softmschein.strasse,
-                        land=husoftm.tools.land2iso(softmschein.land),
+                        land=softmschein.land,
                         plz=softmschein.plz,
                         ort=softmschein.ort,
                     ))
