@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
-"""Uebernimmt alle offenen Kommissionierbelege aus der Soft-Schnittstelle ISA00,
-und sendet je eine Kommiauftrag Nachricht.
+"""
+Übernimmt alle offenen Kommissionieraufträge aus der SoftM-Schnittstelle ISA00,
+und verschickt eine AMQP-Nachricht für jeden Auftrag.
 Der Status des Satzes in ISA00 wird dann auf "X" gesetzt.
 
 Siehe
@@ -19,35 +20,28 @@ import datetime
 import husoftm.kunden
 import husoftm.lagerschnittstelle
 import husoftm.lieferscheine
+import husoftm.tools
 import husoftm.versandart
 import huTools.NetStringIO as NetStringIO
+import logging
 import optparse
 import simplejson as json
 import sys
 import time
 
 
-rowcounter = 0
-
-
-def display(msg):
-    """Display messages based on command line options."""
-    if options.debug or (not options.quiet):
-        print (msg)
-        sys.stdout.flush()
-
-
-def write_journal(doc):
+def write_journal(doc, filename):
     """Write journal entrys of incoming messages."""
     logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
+    nstring = NetStringIO.NetStringIO(open(filename, 'a'))
     nstring.write(logdata)
     nstring.file.close()
 
 
-def transfer_kommis(lager):
+def transfer_kommis(lager, options):
     "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
-    global rowcounter
+    
+    logger = logging.getLogger('ic2wms_kommiauftrag')
 
     isa00 = husoftm.lagerschnittstelle.ISA00()
     isa00.clean_stale_locks()
@@ -57,25 +51,24 @@ def transfer_kommis(lager):
     messaging.setup_queue(outqueuename, durable=True)
 
     if rows:
-        display("Processing Messages")
+        logger.debug("Processing %d rows" % len(rows))
+    
+    rowcounter = 0
     for row in rows:
+        rowcounter += 1
         komminr, auftragsnr, satznr, lagernr = row
-        display("%r" % ([komminr, auftragsnr, satznr, lagernr]))
+        logger.info('%s %s %s %s' % (komminr, auftragsnr, satznr, lagernr))
 
         if int(lagernr) != lager:
-            if options.debug:
-                print "wrong lager"
+            logger.error('Wrong "lager": should be "%s", is "%s"' % (lagernr, lager))
             continue
-
-        rowcounter += 1
-        if options.maxnum and (rowcounter > options.maxnum):
-            display("Maximum number of messages reached, exiting")
-            sys.exit(0)
 
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
 
-        if not softmschein.liefer_date:
-            # Leider kann man in SoftM Aufträuge ohne Liefertermin erfassen ...
+        # Leider kann man in SoftM Aufträuge ohne Liefertermin erfassen.
+        # Falls ein Auftrag ohne Liefertermin auftaucht, schicke eine Nachricht an
+        # den Kundenbetreuer und setze das Lieferdatum auf 'heute'
+        if not softmschein.liefer_date:    
             betreuer = husoftm.kunden.get_kundenbetreuer(softmschein.warenempfaenger)
             msg = u'@%s: %s ohne Aniefertermin erfasst #error' % (betreuer, softmschein.auftragsnr)
             cs.zwitscher.zwitscher(msg, username='mypl')
@@ -86,11 +79,10 @@ def transfer_kommis(lager):
         # We actually have a (small) race condition here, but duplicate messages are no problem
         if not lock_handle:
             # we couldn't lock the row, try next
-            if options.debug:
-                print "couldn't lock the row", komminr
+            logger.debug("Could not lock the row %s" % komminr)
             continue
 
-        # Datensatz ist gelockt, wir koennen damit arbeiten
+        # Datensatz ist gelockt, wir können damit arbeiten
         doc = messaging.empty_message('ic2wms_kommiauftrag',
                                       guid="%s-%s-%s-%s" % (komminr, auftragsnr, satznr, lagernr),
                                       audit_trail='ic2wms_kommiauftrag',
@@ -112,7 +104,7 @@ def transfer_kommis(lager):
                         # addressprotocol
                         name1=softmschein.name1,
                         strasse=softmschein.strasse,
-                        land=softmschein.land,
+                        land=husoftm.tools.land2iso(softmschein.land),
                         plz=softmschein.plz,
                         ort=softmschein.ort,
                     ))
@@ -150,27 +142,27 @@ def transfer_kommis(lager):
         if softmschein.versandart: # FIXME gibt es wahrscheinlich immer, also ist die if-clause unnütz
             # Beschreibung der Versandart aus SoftM
             # In SoftM werden teilweise auch versandvorschriften in die Versandart gepackt, bspw. Hebebühne.
-            # Dh. die Versandart wird von einem späteren Filter nochmals überprüft/verändert.
+            # D.h. die Versandart wird von einem späteren Filter nochmals überprüft/verändert.
             # Hier schonmal die Daten aus dem SoftM eintragen
             versandart = husoftm.versandart.versandart(softmschein.versandart)[1]
             doc['versandartschluessel'] = softmschein.versandart
             doc['versandart'] = versandart
 
-        if options.debug:
-            display(doc)
+        logger.debug(str(doc))
 
         if not options.dry_run:
             # log file for replaying in case of errors
-            write_journal(doc)
+            write_journal(doc, options.log)
             messaging.publish(doc, outqueuename)
             messaging.publish(doc, 'log.%s' % outqueuename)
             isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
+        
+        return rowcounter
 
 
 def main():
     """main function - option parsing and calling of transfer_kommis()."""
-    global options
     
     parser = optparse.OptionParser()
     parser.description = ('Uebernimmt Kommibelege aus der SoftM-Schnittstelle ISA00 und '
@@ -198,15 +190,27 @@ def main():
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
 
+    # Konfiguration des Loggers
+    logger = logging.getLogger('ic2wms_kommiauftrag')
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+    elif options.quiet:
+        logger.setLevel(logging.ERROR)
+    else:
+        logger.setLevel(logging.INFO)
+
+    rowcounter = 0
     while True:
+        
         for lager in options.lager:
-            transfer_kommis(lager)
+            rowcounter += transfer_kommis(lager, options)
         if not options.continuous:
             break
+        if options.maxnum and rowcounter >= options.maxnum:
+            logger.info("Maximum number of messages reached, exiting")
+            sys.exit(0)
         time.sleep(options.sleep)
-
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
