@@ -10,7 +10,6 @@
 
 from optparse import OptionParser
 from signal import signal, SIGTERM, SIGINT
-import Pyro.util
 import cs.caching
 import cs.messaging as messaging
 import cs.zwitscher
@@ -21,7 +20,6 @@ import husoftm.connection
 import husoftm.kunden
 import husoftm.lieferscheine
 import simplejson as json
-import myplfrontend.wmslib
 
 # For exiting the proessing loop
 process_messages = True
@@ -60,7 +58,7 @@ def parse_commandline():
 
 
 def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
-    "Rückmeldung zu SoftM."
+    """Rückmeldung zu SoftM."""
     server = husoftm.connection.PyRoMoftSconnection()
     lock_key = datetime.datetime.now().strftime("%m%d%H%M%S")
     rows = server.query('ISR00', fields=['IRKBNR'], condition="IRKBNR=%d"
@@ -86,7 +84,6 @@ def zurueckmelden(auftragsnr, kommiauftragsnr, positionen, typ='nullen'):
         #     pos_sql['IRMENG'] = 0
         #     pos_sql['IRKZST'] = 1
         else:
-            menge = pos['menge']
             pos_sql['IRMENG'] = int(pos['menge'])
         sqlstr = 'INSERT INTO ISR00 (%s) VALUES (%s)' % (','.join(pos_sql.keys()),
                                                     ','.join([repr(x) for x in pos_sql.values()]))
@@ -124,11 +121,8 @@ def decodiere_message(msg, spezial=False):
         positionsmapping[pos.auftrags_position] = pos.kommissionierbeleg_position
 
     for pos in hugogramm['positionen']:
-        # Setartikel, können wir noch nicht verarbeiten
-        if not 'posnr' in pos:
-            raise SetArtikelError(hugogramm['kommiauftragnr'])
-        if pos['posnr'] == None:
-            raise SetArtikelError(hugogramm['kommiauftragnr'])
+        if not pos.get('posnr'):
+            raise RuntimeError("Kommiauftrag %s enthaelt keine Positionsnummern." % hugogramm['kommiauftragnr'])
 
     positionen = []
     for posnr, (qty, artnr) in cs.masterdata.reunite.reunite(hugogramm['positionen']).items():
@@ -181,8 +175,11 @@ def lieferscheindruck(kommibeleg, hugogramm=None):
 def benachrichtigen(kommibeleg, hugogramm):
     """Den entsprechenden Kundenbetreuer per Zwitschr über das Storno benachrichtigen."""
     betreuer = husoftm.kunden.get_kundenbetreuer(kommibeleg.warenempfaenger)
-    cs.zwitscher.zwitscher(u'@%s: %s/%s: %s (Kunde %s)' % (betreuer, kommibeleg.auftragsnr, hugogramm['kommiauftragnr'],
-                                        hugogramm['audit_trail'],  kommibeleg.name1), username=zwitscher_user)
+    cs.zwitscher.zwitscher(u'@%s: %s/%s: %s Kommiauftrag genullt (Kunde %s)' % (betreuer, kommibeleg.auftragsnr,
+                                                                                hugogramm['kommiauftragnr'],
+                                                                                hugogramm['audit_trail'],
+                                                                                kommibeleg.name1),
+                           username=zwitscher_user)
 
 
 def create_hulog_msg(kommibeleg, hugogramm):
@@ -211,24 +208,57 @@ def handle_message_spezial(message):
     lieferscheindruck(kommibeleg)
 
 
+def check_orderlines(hugogramm, kommibeleg):
+    """Prüft, ob eingegangene Rückmeldedaten den Postionen aus dem Kommiauftrag entsprechen.
+
+    SoftM kann nicht mit veränderten Positionsmengen und vertauschten Positionsnummern umgehen.
+    """
+    def _assert_equal(lhs, rhs, msg=''):
+        if msg:
+            msg += ": "
+        message = "KB%s: %s" % (hugogramm['kommiauftragnr'], msg)
+        if lhs != rhs:
+            raise RuntimeError("%s%s != %s" % (message, lhs, rhs))
+
+    softmpos = kommibeleg.positionen
+    wmspos = hugogramm['positionen']
+    _assert_equal(len(softmpos), len(wmspos), "Anzahl der Positionen")
+    wmspos = dict((pos['auftrags_position'], pos) for pos in wmspos)
+    for pos in softmpos:
+        rel_wmspos = wmspos[pos.auftrags_position]
+        _assert_equal(rel_wmspos['kommissionierbeleg_position'], pos.kommissionierbeleg_position, "Kommissionierbelegpositionsnummer")
+        _assert_equal(rel_wmspos['artnr'], pos.artnr, "Positions-Artikelnr")
+        _assert_equal(rel_wmspos['menge'], pos.menge, "Positions-Menge")
+
+
 def handle_message_normal(message):
     """Callback function used by channel.basic_consume for 'zurueckmelden'."""
     try:
         kommibeleg, hugogramm = decodiere_message(message)
-    except SetArtikelError, e:
-        kommiauftragsnr = int(unicode(e))
-        msg = u'%s Kommiauftrag mit Setartikel kann nicht automatisch zurückgemeldet werden' % kommiauftragsnr
-        cs.zwitscher.zwitscher(msg, username=zwitscher_user)
+    except RuntimeError, e:
+        cs.zwitscher.zwitscher(str(e), username=zwitscher_user)
         channel.basic_ack(message.delivery_tag)
-        #myplfrontend.wmslib.kommibeleg_zurueckmelden(kommiauftragnr, zielqueue="cs-wms.test.rueckmeldung#38#normal", audit_trail=msg)
         return
+
+    # Spezialfall: Alle Mengen = 0, dann Kommiauftrag stornieren
+    if not any(pos['menge'] for pos in hugogramm['positionen']):
+        return handle_message_spezial(message)
+
+    # Prüfen der zurückzumeldenden Positionen (artnr, posnr, menge, ...)
+    try:
+        check_orderlines(hugogramm, kommibeleg)
+    except RuntimeError, e:
+        cs.zwitscher.zwitscher(str(e), username=zwitscher_user)
+        channel.basic_ack(message.delivery_tag)
+        return
+
+    # eigentliches Rückmelden
     log_message('zurueckmelden', kommibeleg, hugogramm)
     zurueckmelden(kommibeleg.auftragsnr, hugogramm['kommiauftragnr'], hugogramm['positionen'], typ='zurueckmelden')
     channel.basic_ack(message.delivery_tag)
     lieferscheindruck(kommibeleg)
     if kommibeleg.lager == 38:
         create_hulog_msg(kommibeleg, hugogramm)
-
 
 
 # This might go somewhere like a signal handler
@@ -272,8 +302,24 @@ def main(opts, args):
         channel.wait()
 
     channel.close()
-    connection.close()
+    channel.connection.close()
 
 
 if __name__ == '__main__':
     main(*parse_commandline())
+
+
+def tst():
+    def zwitsch(*args, **kwargs):
+        print args, kwargs
+    cs.zwitscher.zwitscher = zwitsch
+    class Dummy(object): pass
+    msg = Dummy()
+    msg.body = open('rueck.json').read()
+    options = Dummy()
+    options.debug = False
+    kommibeleg, hugogramm = decodiere_message(msg)
+    if not any(pos['menge'] for pos in hugogramm['positionen']):
+        print "nullen"
+        sys.exit()
+    check_orderlines(hugogramm, kommibeleg)
