@@ -228,7 +228,7 @@ def check_orderlines(hugogramm, kommibeleg):
         rel_wmspos = wmspos[pos.auftrags_position]
         _assert_equal(rel_wmspos['kommissionierbeleg_position'], pos.kommissionierbeleg_position, "Kommissionierbelegpositionsnummer")
         _assert_equal(rel_wmspos['artnr'], pos.artnr, "Positions-Artikelnr")
-        _assert_equal(rel_wmspos['menge'], pos.menge, "Positions-Menge")
+        _assert_equal(rel_wmspos['menge'], pos.menge_komissionierbeleg, "Positions-Menge")
 
 
 def handle_message_normal(message):
