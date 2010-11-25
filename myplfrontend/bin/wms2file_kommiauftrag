@@ -18,6 +18,7 @@ import signal
 import sys
 import simplejson as json
 import time
+import httplib2
 
 # globals
 options = None
@@ -35,24 +36,23 @@ def display(msg):
         sys.stdout.flush()
 
 
-def write_journal(doc):
-    """Write journal entrys of incoming messages."""
-    # TODO move to messaging.tools (?)
-    logdata = json.dumps(doc, sort_keys=True, separators=(',', ':'))
-    if options.debug:
-        print logdata
-    nstring = NetStringIO.NetStringIO(open(options.log, 'a'))
-    nstring.write(logdata)
-    nstring.file.close()
-
-
-def _create_filename(path):
+def _create_filename(path, kommi_auftragsnr):
     """Create an unique filename based upon the process id and the actual timestamp."""
-    pid = os.getpid()
-    fname = "%s_%s" % (pid, datetime.datetime.now().isoformat().replace(':', '_').replace('.', '_'))
+    fname = "KB%s-%s" % (kommi_auftragsnr, datetime.datetime.now().isoformat().replace(':', '_').replace('.', '_'))
     fname = os.path.join(path, fname)
     assert(os.path.exists(fname) == False)
     return fname
+
+
+def upload_to_hulogi(filename, xmlstring):
+    try:
+        http = httplib2.Http(timeout=4)
+        http.add_credentials('u3001','XDR5EKWY2PM6DS')
+        url = 'http://hdhulogi.appspot.com/fmtp/maeuler/%s/' % filename
+        headers = { 'content-type': 'application/xml' }
+        resp, content = http.request(url, 'POST', headers=headers, body=xmlstring)
+    except Exception, ex:
+        print "unable to upload %s to hdhuLogi: %s" % (filename, ex)
 
 
 def handle_message(message):
@@ -63,8 +63,10 @@ def handle_message(message):
     if options.debug:
         print body
 
+    filename = _create_filename(options.path, body['kommiauftragsnr'])
     xmlstring = huTools.protocols.dicttoxml(body, roottag='kommiauftrag')
-    open(_create_filename(options.path), "w").write(xmlstring)
+    open(filename, "w").write(xmlstring)
+    upload_to_hulogi(filename, xmlstring)
     message.channel.basic_ack(message.delivery_tag)
     message_count += 1
 
