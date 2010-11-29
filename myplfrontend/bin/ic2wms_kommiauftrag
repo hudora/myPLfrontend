@@ -39,19 +39,21 @@ def write_journal(doc, filename):
     nstring.file.close()
 
 
-def upload_to_hulogi(komminr, document):
+def upload_to_hulogi(document, options):
     try:
         http = httplib2.Http(timeout=4)
+        http.add_credentials(*options.credentials.split(':', 1))
+        url = '%s/lager/kommiauftrag/upload/KB%s/' % (options.hulogi_domain, document['kommiauftragsnr'])
 
         #http.add_credentials('u3001','XDR5EKWY2PM6DS')
         #url = 'http://hdhulogi.appspot.com/lager/upload/'
-        http.add_credentials('test@example.com','JYJDH5RTYYKX7W')
-        url = 'http://localhost:8080/lager/kommiauftrag/upload/KB%s/' % komminr
+        #http.add_credentials('test@example.com','JYJDH5RTYYKX7W')
+        #url = 'http://localhost:8080/lager/kommiauftrag/upload/KB%s/' % komminr
 
         headers = { 'content-type': 'application/json' }
         resp, content = http.request(url, 'POST', headers=headers, body=hujson.dumps(document))
     except Exception, ex:
-        print "unable to upload KB%s to hdhuLogi: %s" % (komminr, ex)
+        print "unable to upload KB%s to hdhuLogi: %s" % (document['kommiauftragsnr'], ex)
 
 
 def transfer_kommis(lager, options):
@@ -150,7 +152,7 @@ def transfer_kommis(lager, options):
             doc['fixtermin'] = True
 
         # den Kommibeleg nach huLogi zur Weiterverarbeitung hochladen
-        upload_to_hulogi(komminr, doc)
+        upload_to_hulogi(doc, options)
 
         # Priorität:
         # 100000 - Normal;
@@ -190,6 +192,11 @@ def main():
     parser.set_usage('usage: %prog [options]')
     parser.add_option('--lager', type="int", action='append', help='Lager, das bearbeitet werden soll')
     parser.add_option('--out', dest='out_queue', help='Queue to send messages to.')
+
+    # hulogi
+    parser.add_option('--hulogi-domain', dest='hulogi_domain', help='hulogi URL. Kommiauftrag will be pushed to this URL')
+    parser.add_option('--credentials', dest='credentials', help='Credentials to connect to hulogi URL')
+
     parser.add_option('--log', default='/var/log/ic2wms_kommiauftrag.log',
                       help='Wo sollen die Nachrichten protokolliert werden? [%default]')
     parser.add_option('--continuous', action='store_true',
@@ -209,6 +216,12 @@ def main():
         parser.error("'--lager' nicht gesetzt")
     if not options.out_queue:
         parser.error("'--out' nicht gesetzt")
+
+    if not options.credentials:
+        parser.error("'--credentials' nicht gesetzt")
+
+    if not options.hulogi_domain:
+        parser.error("'--hulogi-domain' nicht gesetzt")
 
     # Konfiguration des Loggers
     logger = logging.getLogger('ic2wms_kommiauftrag')
@@ -230,82 +243,6 @@ def main():
             logger.info("Maximum number of messages reached, exiting")
             sys.exit(0)
         time.sleep(options.sleep)
-
-
-def testing_upload():
-    "Handles the transfer of data SoftM/ISA00 -> Kommiauftrag messages."
-    
-    #komminr = '3174852'
-    #komminr = '3142234'
-    #komminr = '3142217'
-    komminr = '3149385'
-
-    softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
-
-    # Leider kann man in SoftM Aufträuge ohne Liefertermin erfassen.
-    # Falls ein Auftrag ohne Liefertermin auftaucht, schicke eine Nachricht an
-    # den Kundenbetreuer und setze das Lieferdatum auf 'heute'
-    if not softmschein.liefer_date:    
-        betreuer = husoftm.kunden.get_kundenbetreuer(softmschein.warenempfaenger)
-        msg = u'@%s: %s ohne Aniefertermin erfasst #error' % (betreuer, softmschein.auftragsnr)
-        cs.zwitscher.zwitscher(msg, username='mypl')
-        softmschein.liefer_date = datetime.date.today()
-        softmschein.anlieferdatum = datetime.date.today()
-
-    # Datensatz ist gelockt, wir können damit arbeiten
-    auftragsnr = softmschein.auftragsnr
-    lagernr = softmschein.lager
-
-    doc = {'guid': '%s-%s-%s-%s' % (komminr, auftragsnr, 'satznr', lagernr),
-           'audit_trail': 'ic2wms_kommiauftrag',
-           'audit_info': 'Auftrag aus SoftM'}
-    doc.update(dict(kommiauftragsnr=komminr,
-                    anliefertermin=softmschein.anlieferdatum.strftime("%Y-%m-%d"),
-                    prioritaet=7, # Wird noch überschrieben, s.u.
-                    # anliefertermin_ab
-                    # versandtermin
-                    # versandtermin_ab
-                    # fixtermin:    Wenn True: Zuspätlieferung kann erhebliche Kosten nach sich ziehen.
-                    # gewicht:      Netto gewicht der Ware in Gramm
-                    # volumen:      Netto Volumen der Ware in Liter
-                    kundennr=softmschein.warenempfaenger,
-                    info_kunde=softmschein.auftragsnr_kunde,
-                    auftragsnr=softmschein.auftragsnr,
-                    kundenname=(' '.join([softmschein.name1, softmschein.name2,
-                                          softmschein.name3])).strip(),
-                    # addressprotocol
-                    name1=softmschein.name1,
-                    strasse=softmschein.strasse,
-                    land=softmschein.land,
-                    plz=softmschein.plz,
-                    ort=softmschein.ort,
-                ))
-    if softmschein.name2:
-        doc['name2'] = softmschein.name2
-    if softmschein.name2:
-        doc['name3'] = softmschein.name3
-
-    # Add kommibelegpositionen to doc
-    doc['positionen'] = []
-    for position in softmschein.positionen:
-        doc['positionen'].append(dict(menge=int(position.menge_komissionierbeleg),
-                                      artnr=position.artnr,
-                                      # !wms2mypl_kommiauftrag erwartet hier die auftragsposition
-                                      # !wms2ic_rueckmeldung erwartet hier die kommibelegposition
-                                      posnr=position.auftrags_position,
-                                      # text
-                                      # EAN
-                                      setartikel=(position.setartikel == 1),
-                                      kommissionierbeleg_position=position.kommissionierbeleg_position,
-                                      auftrags_position=position.auftrags_position,
-                                      kommissionierbelegnr=position.kommissionierbelegnr,
-                                      satznummer=position.satznr))
-
-    if softmschein.fixtermin or softmschein.art == 'WA':
-        doc['fixtermin'] = True
-
-    # den Kommibeleg nach huLogi zur Weiterverarbeitung hochladen
-    upload_to_hulogi(komminr, doc)
 
 
 if __name__ == "__main__":
