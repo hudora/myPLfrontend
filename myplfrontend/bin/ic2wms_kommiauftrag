@@ -146,7 +146,7 @@ def transfer_kommis(lager, options):
                                           kommissionierbelegnr=position.kommissionierbelegnr,
                                           satznummer=position.satznr))
 
-        if softmschein.fixtermin or softmschein.art == 'WA':
+        if softmschein.fixtermin:
             doc['fixtermin'] = True
 
         # den Kommibeleg nach huLogi zur Weiterverarbeitung hochladen
