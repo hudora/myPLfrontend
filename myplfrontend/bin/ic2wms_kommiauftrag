@@ -45,11 +45,6 @@ def upload_to_hulogi(document, options):
         http.add_credentials(*options.credentials.split(':', 1))
         url = '%s/lager/kommiauftrag/upload/KB%s/' % (options.hulogi_domain, document['kommiauftragsnr'])
 
-        #http.add_credentials('u3001','XDR5EKWY2PM6DS')
-        #url = 'http://hdhulogi.appspot.com/lager/upload/'
-        #http.add_credentials('test@example.com','JYJDH5RTYYKX7W')
-        #url = 'http://localhost:8080/lager/kommiauftrag/upload/KB%s/' % komminr
-
         headers = { 'content-type': 'application/json' }
         resp, content = http.request(url, 'POST', headers=headers, body=hujson.dumps(document))
     except Exception, ex:
@@ -179,8 +174,7 @@ def transfer_kommis(lager, options):
             messaging.publish(doc, 'log.%s' % outqueuename)
             isa00.delete(lock_handle)
         isa00.unlock(lock_handle)
-        
-        return rowcounter
+    return rowcounter
 
 
 def main():
