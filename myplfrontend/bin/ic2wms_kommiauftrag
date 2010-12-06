@@ -40,6 +40,17 @@ def write_journal(doc, filename):
 
 
 def upload_to_hulogi(document, options):
+    
+    # Clean up document
+    for attr in 'audit_info', 'audit_trail':
+        if attr in document:
+            del document[attr]
+    
+    for position in document.get('positionen', []):
+        for attr in 'auftrags_position', 'kommissionierbeleg_position', 'kommissionierbelegnr', 'satznummer', 'setartikel':
+            if attr in position:
+                del position[attr]
+    
     try:
         http = httplib2.Http(timeout=4)
         http.add_credentials(*options.credentials.split(':', 1))
