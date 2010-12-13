@@ -189,6 +189,7 @@ def create_hulog_msg(kommibeleg, hugogramm):
     doc['lieferscheinnr'] = kommibeleg.kommissionierbelegnr
     if kommibeleg.lager == 38:
         doc['source'] = 'Maeuler'
+    doc['auftragsnummer'] = kommibeleg.auftragsnr
     doc['spedition'] = hugogramm['spedition']
     doc['positionen'] = hugogramm['trackingnr']
     msg = messaging.empty_message('myplfrontend.bin.wms2ic_rueckmeldung',
