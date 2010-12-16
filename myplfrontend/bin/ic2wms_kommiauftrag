@@ -39,8 +39,12 @@ def write_journal(doc, filename):
     nstring.file.close()
 
 
-def upload_to_hulogi(document, options):
+def upload_to_hulogi(doc, options):
     
+    logger = logging.getLogger('ic2wms_kommiauftrag')
+    document = dict(doc)
+    logger.info("Uploading to huLogi: KB%s" % document.get('kommiauftragsnr', 'unknown'))
+
     # Clean up document
     for attr in 'audit_info', 'audit_trail':
         if attr in document:
@@ -50,7 +54,9 @@ def upload_to_hulogi(document, options):
         for attr in 'auftrags_position', 'kommissionierbeleg_position', 'kommissionierbelegnr', 'satznummer', 'setartikel':
             if attr in position:
                 del position[attr]
-    
+
+    document['anliefertermin_ab'] = document.pop('anliefertermin')
+
     try:
         http = httplib2.Http(timeout=4)
         http.add_credentials(*options.credentials.split(':', 1))
@@ -58,8 +64,10 @@ def upload_to_hulogi(document, options):
 
         headers = { 'content-type': 'application/json' }
         resp, content = http.request(url, 'POST', headers=headers, body=hujson.dumps(document))
+        logger.info("Status: %s" % resp.status)
+        logger.info("content: %s" % content)
     except Exception, ex:
-        print "unable to upload KB%s to hdhuLogi: %s" % (document['kommiauftragsnr'], ex)
+        logger.info("unable to upload KB%s to hdhuLogi: %s" % (document['kommiauftragsnr'], ex))
 
 
 def transfer_kommis(lager, options):
@@ -84,7 +92,7 @@ def transfer_kommis(lager, options):
         logger.info('%s %s %s %s' % (komminr, auftragsnr, satznr, lagernr))
 
         if int(lagernr) != lager:
-            logger.error('Wrong "lager": should be "%s", is "%s"' % (lagernr, lager))
+            #logger.error('Wrong "lager": should be "%s", is "%s"' % (lagernr, lager))
             continue
 
         softmschein = husoftm.lieferscheine.Kommibeleg(komminr)
@@ -158,7 +166,10 @@ def transfer_kommis(lager, options):
             doc['fixtermin'] = True
 
         # den Kommibeleg nach huLogi zur Weiterverarbeitung hochladen
-        upload_to_hulogi(doc, options)
+        try:
+            upload_to_hulogi(doc, options)
+        except:
+            pass
 
         # Priorität:
         # 100000 - Normal;
